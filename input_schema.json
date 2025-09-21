@@ -1,0 +1,20 @@
+{
+  "title": "Insurance Report Downloader Input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "userId": {
+      "title": "User ID",
+      "type": "string",
+      "description": "Supabase user ID",
+      "editor": "textfield"
+    },
+    "month": {
+      "title": "Month",
+      "type": "string",
+      "description": "Report month in YYYY-MM format",
+      "editor": "textfield"
+    }
+  },
+  "required": ["userId", "month"]
+}

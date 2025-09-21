@@ -1,0 +1,27 @@
+{
+  "name": "insurance-report-downloader",
+  "version": "1.0.0",
+  "description": "Apify Actor for downloading insurance commission reports",
+  "main": "actor.js",
+  "scripts": {
+    "start": "node actor.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "apify": "^3.1.10",
+    "playwright": "^1.40.0",
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "keywords": [
+    "apify",
+    "playwright",
+    "insurance",
+    "reports",
+    "automation"
+  ],
+  "author": "Commission360",
+  "license": "MIT",
+  "apify": {
+    "actorSpecification": 1
+  }
+}

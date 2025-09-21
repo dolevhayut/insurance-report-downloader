@@ -1,0 +1,291 @@
+[
+  {
+    "siteId": "passportcard",
+    "displayName": "פספורט קארד",
+    "loginUrl": "https://distributor.passportcard.co.il/login",
+    "selectors": {
+      "username": "#username",
+      "password": "#password",
+      "loginBtn": "button[type=submit]",
+      "otpInput": "#otp",
+      "otpSubmit": "button#verify",
+      "reportsPage": "https://distributor.passportcard.co.il/reports/commissions",
+      "monthSelect": "select#month",
+      "downloadBtn": "a#download-xlsx"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל פספורט קארד, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "fnx",
+    "displayName": "Fnx",
+    "loginUrl": "https://agent.fnx.co.il/my.policy",
+    "selectors": {
+      "username": "input[placeholder='מספר רישיון']",
+      "password": "input[placeholder='מספר תעודת זהות']",
+      "loginBtn": "button:has-text('שלחו קוד זיהוי')",
+      "otpInput": "input[placeholder='קוד אימות']",
+      "otpSubmit": "button:has-text('כניסה')",
+      "reportsPage": "https://agent.fnx.co.il/reports/commissions",
+      "monthSelect": "#month",
+      "downloadBtn": "#export-xlsx"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל FNX, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "harel",
+    "displayName": "הראל ביטוח",
+    "loginUrl": "https://portal.harel-ins.co.il/login",
+    "selectors": {
+      "username": "#username",
+      "password": "#password",
+      "loginBtn": ".login-button",
+      "otpInput": "#otp-code",
+      "otpSubmit": "#verify-otp",
+      "reportsPage": "https://portal.harel-ins.co.il/reports",
+      "monthSelect": "#report-month",
+      "downloadBtn": "#download-report"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל הראל, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "migdal",
+    "displayName": "מגדל ביטוח",
+    "loginUrl": "https://agent.migdal.co.il/login",
+    "selectors": {
+      "username": "#agent-id",
+      "password": "#password",
+      "loginBtn": "button[type='submit']",
+      "otpInput": "#verification-code",
+      "otpSubmit": "#submit-otp",
+      "reportsPage": "https://agent.migdal.co.il/commissions",
+      "monthSelect": "#period-select",
+      "downloadBtn": "#export-btn"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל מגדל, בחר תקופה והורד דוח עמלות"
+  },
+  {
+    "siteId": "clal",
+    "displayName": "כלל ביטוח",
+    "loginUrl": "https://portal.clalbit.co.il/login",
+    "selectors": {
+      "username": "#user-name",
+      "password": "#user-password",
+      "loginBtn": ".btn-login",
+      "otpInput": "#sms-code",
+      "otpSubmit": "#confirm-code",
+      "reportsPage": "https://portal.clalbit.co.il/reports/commissions",
+      "monthSelect": "#month-selector",
+      "downloadBtn": "#download-button"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל כלל, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "menorah",
+    "displayName": "מנורה מבטחים",
+    "loginUrl": "https://agent.menorah.co.il/login",
+    "selectors": {
+      "username": "#agent-number",
+      "password": "#password",
+      "loginBtn": "button.login-btn",
+      "otpInput": "#otp-input",
+      "otpSubmit": "#otp-submit",
+      "reportsPage": "https://agent.menorah.co.il/commissions",
+      "monthSelect": "#month-dropdown",
+      "downloadBtn": "#export-link"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל מנורה, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "phoenix",
+    "displayName": "פניקס ביטוח",
+    "loginUrl": "https://portal.phoenix-ins.co.il/login",
+    "selectors": {
+      "username": "#username-field",
+      "password": "#password-field",
+      "loginBtn": "#login-button",
+      "otpInput": "#verification-input",
+      "otpSubmit": "#verify-button",
+      "reportsPage": "https://portal.phoenix-ins.co.il/reports",
+      "monthSelect": "#report-period",
+      "downloadBtn": "#download-btn"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל פניקס, בחר תקופה והורד דוח עמלות"
+  },
+  {
+    "siteId": "ayalon",
+    "displayName": "אילון ביטוח",
+    "loginUrl": "https://agent.ayalon.co.il/login",
+    "selectors": {
+      "username": "#agent-id-input",
+      "password": "#password-input",
+      "loginBtn": ".login-submit",
+      "otpInput": "#otp-code-input",
+      "otpSubmit": "#otp-confirm",
+      "reportsPage": "https://agent.ayalon.co.il/commissions",
+      "monthSelect": "#month-selector",
+      "downloadBtn": "#export-button"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל אילון, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "direct",
+    "displayName": "דיירקט ביטוח",
+    "loginUrl": "https://portal.direct-ins.co.il/login",
+    "selectors": {
+      "username": "#username",
+      "password": "#password",
+      "loginBtn": "button[type='submit']",
+      "otpInput": "#otp-input",
+      "otpSubmit": "#otp-submit",
+      "reportsPage": "https://portal.direct-ins.co.il/reports",
+      "monthSelect": "#month-picker",
+      "downloadBtn": "#download-report"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל דיירקט, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "shirbit",
+    "displayName": "שירביט ביטוח",
+    "loginUrl": "https://agent.shirbit.co.il/login",
+    "selectors": {
+      "username": "#agent-number",
+      "password": "#password",
+      "loginBtn": ".btn-login",
+      "otpInput": "#verification-code",
+      "otpSubmit": "#confirm-otp",
+      "reportsPage": "https://agent.shirbit.co.il/commissions",
+      "monthSelect": "#period-select",
+      "downloadBtn": "#export-btn"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל שירביט, בחר תקופה והורד דוח עמלות"
+  },
+  {
+    "siteId": "hasneh",
+    "displayName": "הסנה ביטוח",
+    "loginUrl": "https://portal.hasneh.co.il/login",
+    "selectors": {
+      "username": "#user-id",
+      "password": "#password",
+      "loginBtn": "#login-btn",
+      "otpInput": "#sms-code",
+      "otpSubmit": "#verify-sms",
+      "reportsPage": "https://portal.hasneh.co.il/reports",
+      "monthSelect": "#month-dropdown",
+      "downloadBtn": "#download-link"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל הסנה, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "yashir",
+    "displayName": "ישיר ביטוח",
+    "loginUrl": "https://agent.yashir.co.il/login",
+    "selectors": {
+      "username": "#agent-id",
+      "password": "#password",
+      "loginBtn": "button.login-button",
+      "otpInput": "#otp-input",
+      "otpSubmit": "#otp-button",
+      "reportsPage": "https://agent.yashir.co.il/commissions",
+      "monthSelect": "#month-selector",
+      "downloadBtn": "#export-button"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל ישיר, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "halachmi",
+    "displayName": "חלכמי ביטוח",
+    "loginUrl": "https://portal.halachmi.co.il/login",
+    "selectors": {
+      "username": "#username-field",
+      "password": "#password-field",
+      "loginBtn": "#login-submit",
+      "otpInput": "#verification-input",
+      "otpSubmit": "#verify-code",
+      "reportsPage": "https://portal.halachmi.co.il/reports",
+      "monthSelect": "#report-period",
+      "downloadBtn": "#download-btn"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל חלכמי, בחר תקופה והורד דוח עמלות"
+  },
+  {
+    "siteId": "gadish",
+    "displayName": "גדיש ביטוח",
+    "loginUrl": "https://agent.gadish.co.il/login",
+    "selectors": {
+      "username": "#agent-number",
+      "password": "#password",
+      "loginBtn": ".login-btn",
+      "otpInput": "#otp-code",
+      "otpSubmit": "#confirm-otp",
+      "reportsPage": "https://agent.gadish.co.il/commissions",
+      "monthSelect": "#month-picker",
+      "downloadBtn": "#export-report"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל גדיש, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "shoham",
+    "displayName": "שוהם ביטוח",
+    "loginUrl": "https://portal.shoham.co.il/login",
+    "selectors": {
+      "username": "#user-id",
+      "password": "#password",
+      "loginBtn": "button[type='submit']",
+      "otpInput": "#sms-input",
+      "otpSubmit": "#verify-sms",
+      "reportsPage": "https://portal.shoham.co.il/reports",
+      "monthSelect": "#month-selector",
+      "downloadBtn": "#download-button"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל שוהם, בחר חודש והורד דוח עמלות"
+  },
+  {
+    "siteId": "ariel",
+    "displayName": "אריאל ביטוח",
+    "loginUrl": "https://agent.ariel.co.il/login",
+    "selectors": {
+      "username": "#agent-id",
+      "password": "#password",
+      "loginBtn": ".btn-login",
+      "otpInput": "#verification-code",
+      "otpSubmit": "#submit-otp",
+      "reportsPage": "https://agent.ariel.co.il/commissions",
+      "monthSelect": "#period-dropdown",
+      "downloadBtn": "#export-btn"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל אריאל, בחר תקופה והורד דוח עמלות"
+  },
+  {
+    "siteId": "binah",
+    "displayName": "בינה ביטוח",
+    "loginUrl": "https://portal.binah.co.il/login",
+    "selectors": {
+      "username": "#username",
+      "password": "#password",
+      "loginBtn": "#login-button",
+      "otpInput": "#otp-input",
+      "otpSubmit": "#otp-submit",
+      "reportsPage": "https://portal.binah.co.il/reports",
+      "monthSelect": "#month-picker",
+      "downloadBtn": "#download-link"
+    },
+    "needsOtp": true,
+    "instructions": "היכנס לפורטל בינה, בחר חודש והורד דוח עמלות"
+  }
+]

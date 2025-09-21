@@ -1,0 +1,12 @@
+{
+  "actorSpecification": 1,
+  "name": "insurance-report-downloader",
+  "title": "Insurance Report Downloader",
+  "description": "Downloads commission reports from insurance company portals",
+  "version": "1.0.0",
+  "meta": {
+    "templateId": "puppeteer"
+  },
+  "input": "./input_schema.json",
+  "dockerfile": "./Dockerfile"
+}
