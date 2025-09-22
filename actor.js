@@ -1,4 +1,4 @@
-const Apify = require('apify');
+const { Actor } = require('apify');
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +25,7 @@ class InsuranceReportDownloader {
       await this.initialize();
       
       // קבלת פרמטרים מה-input
-      const input = await Apify.getInput();
+      const input = await Actor.getInput();
       this.userId = input.userId;
       this.month = input.month;
 
@@ -273,7 +273,7 @@ class InsuranceReportDownloader {
 }
 
 // הרצת ה-Actor
-Apify.main(async () => {
+Actor.main(async () => {
   const downloader = new InsuranceReportDownloader();
   await downloader.run();
 });
