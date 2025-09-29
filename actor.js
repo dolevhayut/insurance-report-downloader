@@ -158,7 +158,20 @@ class InsuranceReportDownloader {
       const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1920, height: 1080 },
-        locale: 'he-IL'
+        locale: 'he-IL',
+        // הוספת headers כדי להיראות כמו דפדפן אמיתי
+        extraHTTPHeaders: {
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        },
+        // אפשור JavaScript
+        javaScriptEnabled: true,
+        // התעלמות מ-HTTPS errors (לצורך דיבאג)
+        ignoreHTTPSErrors: true
       });
       const page = await context.newPage();
       
@@ -215,14 +228,38 @@ class InsuranceReportDownloader {
   async loginToSite(page, siteConfig, vendor, job) {
     console.log(`Logging into ${siteConfig.displayName}`);
 
-    // מעבר לעמוד התחברות
+    // מעבר לעמוד התחברות עם מעקב אחרי הפניות
     try {
-      const response = await page.goto(siteConfig.loginUrl, { 
-        waitUntil: 'networkidle',
-        timeout: 60000 
+      console.log(`Navigating to: ${siteConfig.loginUrl}`);
+      
+      // רישום כל הבקשות וההפניות
+      const navigationPromises = [];
+      page.on('response', response => {
+        const url = response.url();
+        const status = response.status();
+        if (status >= 300 && status < 400) {
+          console.log(`Redirect ${status}: ${url} -> ${response.headers()['location'] || 'unknown'}`);
+        }
       });
       
-      console.log(`Page loaded. Status: ${response.status()}, URL: ${page.url()}`);
+      // ניווט עם המתנה לטעינה מלאה
+      const response = await page.goto(siteConfig.loginUrl, { 
+        waitUntil: ['networkidle', 'domcontentloaded'],
+        timeout: 60000,
+        // עקוב אחרי כל ההפניות
+        waitForSelector: false
+      });
+      
+      console.log(`Initial response status: ${response.status()}`);
+      console.log(`Initial URL: ${response.url()}`);
+      console.log(`Final URL after redirects: ${page.url()}`);
+      
+      // המתנה נוספת אם יש הפניות JavaScript
+      await page.waitForLoadState('networkidle', { timeout: 30000 });
+      
+      // בדיקה אם הגענו לעמוד הנכון
+      const finalUrl = page.url();
+      console.log(`Final page URL: ${finalUrl}`);
       
       // שמירת screenshot לדיבאג
       const screenshot = await page.screenshot({ fullPage: true });
@@ -233,20 +270,33 @@ class InsuranceReportDownloader {
         contentType: 'image/png'
       });
       
-      // הדפסת HTML לבדיקה
+      // הדפסת מידע על העמוד
+      const pageTitle = await page.title();
+      console.log(`Page title: ${pageTitle}`);
+      
       const pageContent = await page.content();
       console.log(`Page HTML length: ${pageContent.length} characters`);
       
-      // בדיקה אם יש הפניה או בעיית גישה
-      if (page.url() !== siteConfig.loginUrl) {
-        console.log(`Redirected from ${siteConfig.loginUrl} to ${page.url()}`);
+      // בדיקה אם זה עמוד שגיאה או חסימה
+      const bodyText = await page.textContent('body');
+      if (bodyText.includes('Access Denied') || bodyText.includes('403') || bodyText.includes('חסום')) {
+        console.warn('Possible access denied or blocking detected');
       }
       
-      // המתנה קצרה לטעינה מלאה
+      // המתנה נוספת לוודא שכל הסקריפטים רצו
       await page.waitForTimeout(3000);
       
     } catch (error) {
       console.error(`Failed to load login page: ${error.message}`);
+      // שמירת screenshot גם במקרה של שגיאה
+      try {
+        const errorScreenshot = await page.screenshot({ fullPage: true });
+        await Actor.setValue(`error-screenshot-${job.site_id}-${Date.now()}`, errorScreenshot, {
+          contentType: 'image/png'
+        });
+      } catch (screenshotError) {
+        console.error('Failed to take error screenshot:', screenshotError.message);
+      }
       throw error;
     }
 
