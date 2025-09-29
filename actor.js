@@ -342,40 +342,109 @@ class InsuranceReportDownloader {
       await page.fill(siteConfig.selectors.phoneField, vendor.phone || vendor.password);
       
       // בחירת SMS אם יש
+      console.log('Looking for SMS radio button...');
+      
+      // הדפס את כל ה-radio buttons בעמוד
+      const radioButtons = await page.locator('input[type="radio"]').all();
+      console.log(`Found ${radioButtons.length} radio buttons`);
+      for (let i = 0; i < radioButtons.length; i++) {
+        const value = await radioButtons[i].getAttribute('value');
+        const name = await radioButtons[i].getAttribute('name');
+        const id = await radioButtons[i].getAttribute('id');
+        const isVisible = await radioButtons[i].isVisible();
+        console.log(`Radio ${i}: value="${value}", name="${name}", id="${id}", visible=${isVisible}`);
+      }
+      
+      // הדפס את כל ה-labels
+      const labels = await page.locator('label').all();
+      console.log(`Found ${labels.length} labels`);
+      for (let i = 0; i < Math.min(labels.length, 10); i++) {
+        const text = await labels[i].textContent();
+        console.log(`Label ${i}: "${text?.trim()}"`);
+      }
+      
       if (siteConfig.selectors.smsRadio) {
         try {
-          // נסה עם text selector של Playwright
-          await page.locator('text=בהודעת SMS').click();
+          // נסה ללחוץ על ה-label שמכיל SMS
+          const smsLabel = await page.locator('label').filter({ hasText: 'SMS' }).first();
+          if (await smsLabel.count() > 0) {
+            console.log('Found SMS label, clicking...');
+            await smsLabel.click();
+          } else {
+            // נסה ללחוץ על radio button ישירות
+            const smsRadio = await page.locator('input[type="radio"]').first();
+            if (await smsRadio.count() > 0) {
+              console.log('Clicking first radio button...');
+              await smsRadio.click();
+            }
+          }
         } catch (e) {
-          console.log('Could not click SMS radio with text selector, trying alternative...');
-          // נסה למצוא את ה-radio button עצמו
-          await page.locator('input[type="radio"][value="SMS"]').click();
+          console.log('Error clicking SMS radio:', e.message);
         }
       }
       
       // סימון צ'קבוקס תנאי שימוש
+      console.log('Looking for terms checkbox...');
+      
+      // הדפס את כל ה-checkboxes
+      const checkboxes = await page.locator('input[type="checkbox"]').all();
+      console.log(`Found ${checkboxes.length} checkboxes`);
+      for (let i = 0; i < checkboxes.length; i++) {
+        const id = await checkboxes[i].getAttribute('id');
+        const name = await checkboxes[i].getAttribute('name');
+        const isVisible = await checkboxes[i].isVisible();
+        const isChecked = await checkboxes[i].isChecked();
+        console.log(`Checkbox ${i}: id="${id}", name="${name}", visible=${isVisible}, checked=${isChecked}`);
+      }
+      
       if (siteConfig.selectors.termsCheckbox) {
         try {
-          // נסה עם text selector
-          await page.locator('text=אני מאשר').click();
+          // נסה ללחוץ על checkbox ראשון אם הוא לא מסומן
+          const firstCheckbox = page.locator('input[type="checkbox"]').first();
+          if (await firstCheckbox.count() > 0) {
+            const isChecked = await firstCheckbox.isChecked();
+            if (!isChecked) {
+              console.log('Clicking first checkbox...');
+              await firstCheckbox.click();
+            } else {
+              console.log('Checkbox already checked');
+            }
+          }
         } catch (e) {
-          console.log('Could not click terms checkbox with text selector, trying alternative...');
-          // נסה למצוא checkbox
-          await page.locator('input[type="checkbox"]').first().click();
+          console.log('Error clicking checkbox:', e.message);
         }
       }
       
       // לחיצה על כפתור המשך
+      console.log('Looking for continue button...');
+      
+      // הדפס את כל הכפתורים
+      const buttons = await page.locator('button').all();
+      console.log(`Found ${buttons.length} buttons`);
+      for (let i = 0; i < Math.min(buttons.length, 10); i++) {
+        const text = await buttons[i].textContent();
+        const type = await buttons[i].getAttribute('type');
+        const isVisible = await buttons[i].isVisible();
+        const isDisabled = await buttons[i].isDisabled();
+        console.log(`Button ${i}: text="${text?.trim()}", type="${type}", visible=${isVisible}, disabled=${isDisabled}`);
+      }
+      
       try {
-        await page.locator('button:has-text("המשך")').click();
-      } catch (e) {
-        console.log('Could not click continue button with text selector, trying alternatives...');
-        // נסיונות נוספים
-        try {
-          await page.locator('text=המשך').click();
-        } catch (e2) {
-          await page.locator('button[type="submit"]').click();
+        // נסה למצוא כפתור עם טקסט "המשך"
+        const continueBtn = page.locator('button').filter({ hasText: 'המשך' }).first();
+        if (await continueBtn.count() > 0) {
+          console.log('Found continue button, clicking...');
+          await continueBtn.click();
+        } else {
+          // נסה כפתור submit
+          const submitBtn = page.locator('button[type="submit"]').first();
+          if (await submitBtn.count() > 0) {
+            console.log('Found submit button, clicking...');
+            await submitBtn.click();
+          }
         }
+      } catch (e) {
+        console.log('Error clicking continue button:', e.message);
       }
       
     } else if (siteConfig.siteId === 'altshuler_shaham') {
