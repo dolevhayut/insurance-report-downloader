@@ -69,48 +69,46 @@
       "enumTitles": ["Manual Input", "Mapping File", "Supabase Database"],
       "default": "manual"
     },
-    "credentials": {
-      "title": "Manual Credentials",
-      "type": "object",
-      "description": "Enter credentials manually (required if credentialsSource is 'manual')",
-      "editor": "json",
-      "properties": {
-        "username": {
-          "title": "Username",
-          "type": "string",
-          "description": "Username or agent number"
-        },
-        "password": {
-          "title": "Password",
-          "type": "string",
-          "description": "Password"
-        },
-        "id": {
-          "title": "ID Number",
-          "type": "string",
-          "description": "ID number (for sites that require it)"
-        },
-        "license": {
-          "title": "License Number",
-          "type": "string",
-          "description": "License number (for sites that require it)"
-        },
-        "phone": {
-          "title": "Phone Number",
-          "type": "string",
-          "description": "Phone number (for sites that require it)"
-        },
-        "agency": {
-          "title": "Agency Name",
-          "type": "string",
-          "description": "Agency name (for sites that require it)"
-        }
-      }
+    "username": {
+      "title": "Username",
+      "type": "string",
+      "description": "Username or agent number (for manual credentials)",
+      "editor": "textfield"
+    },
+    "password": {
+      "title": "Password",
+      "type": "string",
+      "description": "Password (for manual credentials)",
+      "editor": "textfield"
+    },
+    "id": {
+      "title": "ID Number",
+      "type": "string",
+      "description": "ID number (for sites that require it)",
+      "editor": "textfield"
+    },
+    "license": {
+      "title": "License Number",
+      "type": "string",
+      "description": "License number (for sites that require it)",
+      "editor": "textfield"
+    },
+    "phone": {
+      "title": "Phone Number",
+      "type": "string",
+      "description": "Phone number (for sites that require it)",
+      "editor": "textfield"
+    },
+    "agency": {
+      "title": "Agency Name",
+      "type": "string",
+      "description": "Agency name (for sites that require it)",
+      "editor": "textfield"
     },
     "userId": {
       "title": "User ID",
       "type": "string",
-      "description": "Supabase user ID (required if credentialsSource is 'supabase')",
+      "description": "Supabase user ID (required if credentialsSource is 'supabase' or mode is 'all')",
       "editor": "textfield"
     },
     "month": {
@@ -125,29 +123,13 @@
       "type": "boolean",
       "description": "Wait for OTP input if required",
       "default": true
+    },
+    "otp": {
+      "title": "OTP Code",
+      "type": "string",
+      "description": "OTP code (enter during runtime when requested)",
+      "editor": "textfield"
     }
   },
-  "required": ["mode", "month"],
-  "dependencies": {
-    "mode": {
-      "oneOf": [
-        {
-          "properties": {
-            "mode": {
-              "enum": ["single"]
-            }
-          },
-          "required": ["provider", "credentialsSource"]
-        },
-        {
-          "properties": {
-            "mode": {
-              "enum": ["all"]
-            }
-          },
-          "required": ["userId"]
-        }
-      ]
-    }
-  }
+  "required": ["mode", "month"]
 }

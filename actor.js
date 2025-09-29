@@ -53,7 +53,7 @@ class InsuranceReportDownloader {
   }
 
   async runSingleProvider(input) {
-    const { provider, credentialsSource, credentials } = input;
+    const { provider, credentialsSource } = input;
     
     if (!provider) {
       throw new Error('Provider is required in single mode');
@@ -63,7 +63,14 @@ class InsuranceReportDownloader {
     let vendorCredentials;
     
     if (credentialsSource === 'manual') {
-      vendorCredentials = credentials;
+      // בניית אובייקט credentials מהשדות הבודדים
+      vendorCredentials = {};
+      if (input.username) vendorCredentials.username = input.username;
+      if (input.password) vendorCredentials.password = input.password;
+      if (input.id) vendorCredentials.id = input.id;
+      if (input.license) vendorCredentials.license = input.license;
+      if (input.phone) vendorCredentials.phone = input.phone;
+      if (input.agency) vendorCredentials.agency = input.agency;
     } else if (credentialsSource === 'mapping') {
       // טעינת פרטי התחברות מהמיפוי
       try {
