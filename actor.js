@@ -155,8 +155,16 @@ class InsuranceReportDownloader {
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
-      const context = await browser.newContext();
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1920, height: 1080 },
+        locale: 'he-IL'
+      });
       const page = await context.newPage();
+      
+      // הוספת דיבאג - שמירת screenshots ו-HTML
+      page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+      page.on('pageerror', err => console.log('PAGE ERROR:', err.message));
 
       // קבלת פרטי התחברות
       let vendor = providedVendor;
@@ -208,12 +216,81 @@ class InsuranceReportDownloader {
     console.log(`Logging into ${siteConfig.displayName}`);
 
     // מעבר לעמוד התחברות
-    await page.goto(siteConfig.loginUrl, { waitUntil: 'networkidle' });
+    try {
+      const response = await page.goto(siteConfig.loginUrl, { 
+        waitUntil: 'networkidle',
+        timeout: 60000 
+      });
+      
+      console.log(`Page loaded. Status: ${response.status()}, URL: ${page.url()}`);
+      
+      // שמירת screenshot לדיבאג
+      const screenshot = await page.screenshot({ fullPage: true });
+      console.log(`Screenshot taken. Size: ${screenshot.length} bytes`);
+      
+      // שמירת ה-screenshot ב-Apify key-value store
+      await Actor.setValue(`screenshot-${job.site_id}-${Date.now()}`, screenshot, {
+        contentType: 'image/png'
+      });
+      
+      // הדפסת HTML לבדיקה
+      const pageContent = await page.content();
+      console.log(`Page HTML length: ${pageContent.length} characters`);
+      
+      // בדיקה אם יש הפניה או בעיית גישה
+      if (page.url() !== siteConfig.loginUrl) {
+        console.log(`Redirected from ${siteConfig.loginUrl} to ${page.url()}`);
+      }
+      
+      // המתנה קצרה לטעינה מלאה
+      await page.waitForTimeout(3000);
+      
+    } catch (error) {
+      console.error(`Failed to load login page: ${error.message}`);
+      throw error;
+    }
 
     // טיפול בסוגי התחברות שונים
     if (siteConfig.siteId === 'yellin_lapidot') {
       // ילין לפידות - תעודת זהות וטלפון
-      await page.fill(siteConfig.selectors.idField, vendor.id || vendor.username);
+      console.log('Yellin Lapidot login flow...');
+      
+      // בדיקה אם האלמנט קיים
+      try {
+        const idFieldExists = await page.locator(siteConfig.selectors.idField).count();
+        console.log(`ID field exists: ${idFieldExists > 0}`);
+        
+        if (idFieldExists === 0) {
+          // נסיון למצוא את האלמנט בדרכים אחרות
+          console.log('Trying alternative selectors...');
+          const inputs = await page.locator('input').all();
+          console.log(`Found ${inputs.length} input elements`);
+          
+          for (let i = 0; i < inputs.length; i++) {
+            const placeholder = await inputs[i].getAttribute('placeholder');
+            const type = await inputs[i].getAttribute('type');
+            console.log(`Input ${i}: placeholder="${placeholder}", type="${type}"`);
+          }
+          
+          // נסיון עם סלקטור אחר
+          const altSelector = 'input[type="text"]';
+          const altExists = await page.locator(altSelector).first().count();
+          if (altExists > 0) {
+            console.log('Using alternative selector for ID field');
+            await page.locator(altSelector).first().fill(vendor.id || vendor.username);
+          } else {
+            throw new Error('Could not find ID input field');
+          }
+        } else {
+          await page.fill(siteConfig.selectors.idField, vendor.id || vendor.username);
+        }
+      } catch (error) {
+        console.error(`Error filling ID field: ${error.message}`);
+        // שמירת HTML לדיבאג
+        const html = await page.content();
+        console.log('Page HTML snippet:', html.substring(0, 1000));
+        throw error;
+      }
       await page.fill(siteConfig.selectors.phoneField, vendor.phone || vendor.password);
       
       // בחירת SMS אם יש
