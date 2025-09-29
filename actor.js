@@ -153,8 +153,11 @@ class InsuranceReportDownloader {
     let page = null;
     
     try {
+      // קבלת input עדכני
+      const currentInput = await Actor.getInput() || {};
+      
       // פתיחת דפדפן
-      const isDebugMode = process.env.DEBUG_MODE === 'true' || input.debugMode === true;
+      const isDebugMode = process.env.DEBUG_MODE === 'true' || currentInput.debugMode === true;
       
       browser = await chromium.launch({ 
         headless: !isDebugMode, // אם במצב דיבאג, הפעל עם UI
