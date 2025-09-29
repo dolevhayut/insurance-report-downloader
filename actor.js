@@ -5,6 +5,7 @@ const path = require('path');
 
 // טעינת תצורת האתרים
 const sitesConfig = require('./sites_config.json');
+const ProviderFactory = require('./providers/ProviderFactory');
 
 class InsuranceReportDownloader {
   constructor() {
@@ -149,17 +150,19 @@ class InsuranceReportDownloader {
     }
 
     let browser = null;
+    let page = null;
+    
     try {
       // פתיחת דפדפן
       browser = await chromium.launch({ 
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
+      
       const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1920, height: 1080 },
         locale: 'he-IL',
-        // הוספת headers כדי להיראות כמו דפדפן אמיתי
         extraHTTPHeaders: {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -168,16 +171,11 @@ class InsuranceReportDownloader {
           'Connection': 'keep-alive',
           'Upgrade-Insecure-Requests': '1'
         },
-        // אפשור JavaScript
         javaScriptEnabled: true,
-        // התעלמות מ-HTTPS errors (לצורך דיבאג)
         ignoreHTTPSErrors: true
       });
-      const page = await context.newPage();
       
-      // הוספת דיבאג - שמירת screenshots ו-HTML
-      page.on('console', msg => console.log('PAGE LOG:', msg.text()));
-      page.on('pageerror', err => console.log('PAGE ERROR:', err.message));
+      page = await context.newPage();
 
       // קבלת פרטי התחברות
       let vendor = providedVendor;
@@ -197,11 +195,33 @@ class InsuranceReportDownloader {
         vendor = dbVendor;
       }
 
-      // התחברות לאתר
-      await this.loginToSite(page, siteConfig, vendor, job);
-
+      // יצירת provider instance
+      const provider = ProviderFactory.getProvider(job.site_id, siteConfig, vendor, job);
+      
+      // התחברות
+      await provider.login(page);
+      
+      // טיפול ב-OTP אם נדרש
+      if (siteConfig.needsOtp && vendor.needs_otp !== false && this.handleOtp) {
+        await provider.handleOTP(page);
+      }
+      
+      // ניווט לעמוד הדוחות
+      await provider.navigateToReports(page);
+      
       // הורדת הדוח
-      const fileUrl = await this.downloadReport(page, siteConfig, job);
+      const download = await provider.downloadReport(page, this.month);
+      
+      // שמירת הקובץ
+      const fileName = `${job.site_id}_${this.month}_${Date.now()}.xlsx`;
+      const filePath = path.join('/tmp', fileName);
+      await download.saveAs(filePath);
+      
+      // העלאה ל-Supabase Storage
+      const fileUrl = await this.uploadToStorage(filePath, fileName, job.user_id);
+      
+      // מחיקת הקובץ הזמני
+      fs.unlinkSync(filePath);
 
       // עדכון סטטוס להצלחה רק אם זה לא job זמני
       if (!job.id.startsWith('temp_')) {
@@ -214,6 +234,19 @@ class InsuranceReportDownloader {
 
     } catch (error) {
       console.error(`Failed to process job ${job.id}:`, error);
+      
+      // שמירת screenshot לדיבאג
+      if (page) {
+        try {
+          const screenshot = await page.screenshot({ fullPage: true });
+          await Actor.setValue(`error-${job.site_id}-${Date.now()}`, screenshot, {
+            contentType: 'image/png'
+          });
+        } catch (screenshotError) {
+          console.error('Failed to save error screenshot:', screenshotError.message);
+        }
+      }
+      
       if (!job.id.startsWith('temp_')) {
         await this.updateJobStatus(job.id, 'error', null, error.message);
       }
@@ -223,406 +256,6 @@ class InsuranceReportDownloader {
         await browser.close();
       }
     }
-  }
-
-  async loginToSite(page, siteConfig, vendor, job) {
-    console.log(`Logging into ${siteConfig.displayName}`);
-
-    // מעבר לעמוד התחברות עם מעקב אחרי הפניות
-    try {
-      console.log(`Navigating to: ${siteConfig.loginUrl}`);
-      
-      // רישום כל הבקשות וההפניות
-      const navigationPromises = [];
-      page.on('response', response => {
-        const url = response.url();
-        const status = response.status();
-        if (status >= 300 && status < 400) {
-          console.log(`Redirect ${status}: ${url} -> ${response.headers()['location'] || 'unknown'}`);
-        }
-      });
-      
-      // ניווט עם המתנה לטעינה מלאה
-      const response = await page.goto(siteConfig.loginUrl, { 
-        waitUntil: 'networkidle',
-        timeout: 60000
-      });
-      
-      console.log(`Initial response status: ${response.status()}`);
-      console.log(`Initial URL: ${response.url()}`);
-      console.log(`Final URL after redirects: ${page.url()}`);
-      
-      // המתנה נוספת אם יש הפניות JavaScript
-      await page.waitForLoadState('networkidle', { timeout: 30000 });
-      
-      // בדיקה אם הגענו לעמוד הנכון
-      const finalUrl = page.url();
-      console.log(`Final page URL: ${finalUrl}`);
-      
-      // שמירת screenshot לדיבאג
-      const screenshot = await page.screenshot({ fullPage: true });
-      console.log(`Screenshot taken. Size: ${screenshot.length} bytes`);
-      
-      // שמירת ה-screenshot ב-Apify key-value store
-      await Actor.setValue(`screenshot-${job.site_id}-${Date.now()}`, screenshot, {
-        contentType: 'image/png'
-      });
-      
-      // הדפסת מידע על העמוד
-      const pageTitle = await page.title();
-      console.log(`Page title: ${pageTitle}`);
-      
-      const pageContent = await page.content();
-      console.log(`Page HTML length: ${pageContent.length} characters`);
-      
-      // בדיקה אם זה עמוד שגיאה או חסימה
-      const bodyText = await page.textContent('body');
-      if (bodyText.includes('Access Denied') || bodyText.includes('403') || bodyText.includes('חסום')) {
-        console.warn('Possible access denied or blocking detected');
-      }
-      
-      // המתנה נוספת לוודא שכל הסקריפטים רצו
-      await page.waitForTimeout(3000);
-      
-    } catch (error) {
-      console.error(`Failed to load login page: ${error.message}`);
-      // שמירת screenshot גם במקרה של שגיאה
-      try {
-        const errorScreenshot = await page.screenshot({ fullPage: true });
-        await Actor.setValue(`error-screenshot-${job.site_id}-${Date.now()}`, errorScreenshot, {
-          contentType: 'image/png'
-        });
-      } catch (screenshotError) {
-        console.error('Failed to take error screenshot:', screenshotError.message);
-      }
-      throw error;
-    }
-
-    // טיפול בסוגי התחברות שונים
-    if (siteConfig.siteId === 'yellin_lapidot') {
-      // ילין לפידות - תעודת זהות וטלפון
-      console.log('Yellin Lapidot login flow...');
-      
-      // בדיקה אם האלמנט קיים
-      try {
-        const idFieldExists = await page.locator(siteConfig.selectors.idField).count();
-        console.log(`ID field exists: ${idFieldExists > 0}`);
-        
-        if (idFieldExists === 0) {
-          // נסיון למצוא את האלמנט בדרכים אחרות
-          console.log('Trying alternative selectors...');
-          const inputs = await page.locator('input').all();
-          console.log(`Found ${inputs.length} input elements`);
-          
-          for (let i = 0; i < inputs.length; i++) {
-            const placeholder = await inputs[i].getAttribute('placeholder');
-            const type = await inputs[i].getAttribute('type');
-            console.log(`Input ${i}: placeholder="${placeholder}", type="${type}"`);
-          }
-          
-          // נסיון עם סלקטור אחר
-          const altSelector = 'input[type="text"]';
-          const altExists = await page.locator(altSelector).first().count();
-          if (altExists > 0) {
-            console.log('Using alternative selector for ID field');
-            await page.locator(altSelector).first().fill(vendor.id || vendor.username);
-          } else {
-            throw new Error('Could not find ID input field');
-          }
-        } else {
-          await page.fill(siteConfig.selectors.idField, vendor.id || vendor.username);
-        }
-      } catch (error) {
-        console.error(`Error filling ID field: ${error.message}`);
-        // שמירת HTML לדיבאג
-        const html = await page.content();
-        console.log('Page HTML snippet:', html.substring(0, 1000));
-        throw error;
-      }
-      await page.fill(siteConfig.selectors.phoneField, vendor.phone || vendor.password);
-      
-      // בחירת SMS אם יש
-      console.log('Looking for SMS radio button...');
-      
-      // הדפס את כל ה-radio buttons בעמוד
-      const radioButtons = await page.locator('input[type="radio"]').all();
-      console.log(`Found ${radioButtons.length} radio buttons`);
-      for (let i = 0; i < radioButtons.length; i++) {
-        const value = await radioButtons[i].getAttribute('value');
-        const name = await radioButtons[i].getAttribute('name');
-        const id = await radioButtons[i].getAttribute('id');
-        const isVisible = await radioButtons[i].isVisible();
-        console.log(`Radio ${i}: value="${value}", name="${name}", id="${id}", visible=${isVisible}`);
-      }
-      
-      // הדפס את כל ה-labels
-      const labels = await page.locator('label').all();
-      console.log(`Found ${labels.length} labels`);
-      for (let i = 0; i < Math.min(labels.length, 10); i++) {
-        const text = await labels[i].textContent();
-        console.log(`Label ${i}: "${text?.trim()}"`);
-      }
-      
-      if (siteConfig.selectors.smsRadio) {
-        try {
-          // נסה ללחוץ על ה-label שמכיל SMS
-          const smsLabel = await page.locator('label').filter({ hasText: 'SMS' }).first();
-          if (await smsLabel.count() > 0) {
-            console.log('Found SMS label, clicking...');
-            await smsLabel.click();
-          } else {
-            // נסה ללחוץ על radio button ישירות
-            const smsRadio = await page.locator('input[type="radio"]').first();
-            if (await smsRadio.count() > 0) {
-              console.log('Clicking first radio button...');
-              await smsRadio.click();
-            }
-          }
-        } catch (e) {
-          console.log('Error clicking SMS radio:', e.message);
-        }
-      }
-      
-      // סימון צ'קבוקס תנאי שימוש
-      console.log('Looking for terms checkbox...');
-      
-      // הדפס את כל ה-checkboxes
-      const checkboxes = await page.locator('input[type="checkbox"]').all();
-      console.log(`Found ${checkboxes.length} checkboxes`);
-      for (let i = 0; i < checkboxes.length; i++) {
-        const id = await checkboxes[i].getAttribute('id');
-        const name = await checkboxes[i].getAttribute('name');
-        const isVisible = await checkboxes[i].isVisible();
-        const isChecked = await checkboxes[i].isChecked();
-        console.log(`Checkbox ${i}: id="${id}", name="${name}", visible=${isVisible}, checked=${isChecked}`);
-      }
-      
-      if (siteConfig.selectors.termsCheckbox) {
-        try {
-          // נסה ללחוץ על checkbox ראשון אם הוא לא מסומן
-          const firstCheckbox = page.locator('input[type="checkbox"]').first();
-          if (await firstCheckbox.count() > 0) {
-            const isChecked = await firstCheckbox.isChecked();
-            if (!isChecked) {
-              console.log('Clicking first checkbox...');
-              await firstCheckbox.click();
-            } else {
-              console.log('Checkbox already checked');
-            }
-          }
-        } catch (e) {
-          console.log('Error clicking checkbox:', e.message);
-        }
-      }
-      
-      // לחיצה על כפתור המשך
-      console.log('Looking for continue button...');
-      
-      // הדפס את כל הכפתורים
-      const buttons = await page.locator('button').all();
-      console.log(`Found ${buttons.length} buttons`);
-      for (let i = 0; i < Math.min(buttons.length, 10); i++) {
-        const text = await buttons[i].textContent();
-        const type = await buttons[i].getAttribute('type');
-        const isVisible = await buttons[i].isVisible();
-        const isDisabled = await buttons[i].isDisabled();
-        console.log(`Button ${i}: text="${text?.trim()}", type="${type}", visible=${isVisible}, disabled=${isDisabled}`);
-      }
-      
-      try {
-        // נסה למצוא כפתור עם טקסט "המשך"
-        const continueBtn = page.locator('button').filter({ hasText: 'המשך' }).first();
-        if (await continueBtn.count() > 0) {
-          console.log('Found continue button, clicking...');
-          await continueBtn.click();
-        } else {
-          // נסה כפתור submit
-          const submitBtn = page.locator('button[type="submit"]').first();
-          if (await submitBtn.count() > 0) {
-            console.log('Found submit button, clicking...');
-            await submitBtn.click();
-          }
-        }
-      } catch (e) {
-        console.log('Error clicking continue button:', e.message);
-      }
-      
-    } else if (siteConfig.siteId === 'altshuler_shaham') {
-      // אלטשולר שחם - רישיון ותעודת זהות
-      if (siteConfig.selectors.idTypeRadio) {
-        await page.click(siteConfig.selectors.idTypeRadio);
-      }
-      await page.fill(siteConfig.selectors.licenseField, vendor.license || vendor.username);
-      await page.fill(siteConfig.selectors.idField, vendor.id || vendor.password);
-      
-      // לחיצה על שלח קוד
-      await page.click(siteConfig.selectors.sendCodeBtn);
-      
-    } else {
-      // התחברות רגילה - שם משתמש וסיסמה
-      await page.fill(siteConfig.selectors.username, vendor.username);
-      await page.fill(siteConfig.selectors.password, vendor.password);
-      
-      // סימון צ'קבוקס תנאי שימוש אם יש
-      if (siteConfig.selectors.termsCheckbox) {
-        await page.click(siteConfig.selectors.termsCheckbox);
-      }
-      
-      // לחיצה על כפתור התחברות
-      await page.click(siteConfig.selectors.loginBtn);
-    }
-    
-    await page.waitForLoadState('networkidle');
-
-    // בדיקה אם נדרש OTP
-    if (siteConfig.needsOtp && vendor.needs_otp) {
-      await this.handleOTP(page, siteConfig, job);
-    }
-  }
-
-  async handleOTP(page, siteConfig, job) {
-    console.log(`OTP required for ${siteConfig.displayName}`);
-
-    // בדיקה אם להמתין ל-OTP
-    if (!this.handleOtp) {
-      throw new Error('OTP required but handleOtp is disabled');
-    }
-
-    let otp;
-    
-    // אם זה job זמני, נבקש OTP מה-console
-    if (job.id.startsWith('temp_')) {
-      console.log('\n=== OTP REQUIRED ===');
-      console.log(`Please enter the OTP code for ${siteConfig.displayName}:`);
-      console.log('Waiting for OTP input in Apify logs...');
-      console.log('\nNote: In production, enter the OTP in the Apify console input field.');
-      
-      // בסביבת Apify, ניתן להזין את ה-OTP דרך ה-console
-      // כאן נחכה זמן קבוע ונניח שהמשתמש יזין את הקוד
-      await new Promise(resolve => setTimeout(resolve, 60000)); // המתנה של דקה
-      
-      // בפועל, ב-Apify יש אפשרות להזין input נוסף תוך כדי ריצה
-      const additionalInput = await Actor.getInput();
-      otp = additionalInput?.otp;
-      
-      if (!otp) {
-        throw new Error('OTP not provided within timeout');
-      }
-    } else {
-      // יצירת בקשה ל-OTP בדאטאבייס
-      const { error: otpError } = await this.supabase
-        .from('otp_requests')
-        .insert({
-          job_id: job.id,
-          user_id: job.user_id,
-          site_id: job.site_id,
-          status: 'waiting'
-        });
-
-      if (otpError) {
-        throw new Error(`Failed to create OTP request: ${otpError.message}`);
-      }
-
-      // עדכון סטטוס job ל-OTP
-      await this.updateJobStatus(job.id, 'otp');
-
-      // המתנה ל-OTP מהמשתמש
-      otp = await this.waitForOTP(job.id);
-      
-      if (!otp) {
-        throw new Error('OTP not provided by user');
-      }
-    }
-
-    // הזנת OTP
-    if (siteConfig.siteId === 'altshuler_shaham' && Array.isArray(siteConfig.selectors.otpFields)) {
-      // אלטשולר שחם - 6 שדות נפרדים ל-OTP
-      const otpDigits = otp.split('');
-      for (let i = 0; i < Math.min(otpDigits.length, siteConfig.selectors.otpFields.length); i++) {
-        await page.fill(siteConfig.selectors.otpFields[i], otpDigits[i]);
-      }
-    } else {
-      // OTP רגיל - שדה אחד
-      await page.fill(siteConfig.selectors.otpInput, otp);
-    }
-    
-    // לחיצה על כפתור אישור
-    if (siteConfig.selectors.otpSubmit) {
-      await page.click(siteConfig.selectors.otpSubmit);
-    } else if (siteConfig.selectors.loginBtn) {
-      await page.click(siteConfig.selectors.loginBtn);
-    }
-    
-    await page.waitForLoadState('networkidle');
-
-    // עדכון סטטוס OTP ל-consumed
-    await this.supabase
-      .from('otp_requests')
-      .update({ status: 'consumed' })
-      .eq('job_id', job.id);
-  }
-
-  async waitForOTP(jobId) {
-    console.log('Waiting for OTP from user...');
-    
-    const maxWaitTime = 300000; // 5 דקות
-    const checkInterval = 2000; // 2 שניות
-    let waitTime = 0;
-
-    while (waitTime < maxWaitTime) {
-      const { data: otpRequest, error } = await this.supabase
-        .from('otp_requests')
-        .select('*')
-        .eq('job_id', jobId)
-        .single();
-
-      if (error) {
-        console.error('Error checking OTP:', error);
-        continue;
-      }
-
-      if (otpRequest.status === 'submitted' && otpRequest.otp) {
-        return otpRequest.otp;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, checkInterval));
-      waitTime += checkInterval;
-    }
-
-    return null;
-  }
-
-  async downloadReport(page, siteConfig, job) {
-    console.log(`Downloading report from ${siteConfig.displayName}`);
-
-    // מעבר לעמוד הדוחות
-    if (siteConfig.selectors.reportsPage) {
-      await page.goto(siteConfig.selectors.reportsPage, { waitUntil: 'networkidle' });
-    }
-
-    // בחירת חודש
-    if (siteConfig.selectors.monthSelect) {
-      await page.selectOption(siteConfig.selectors.monthSelect, job.month);
-      await page.waitForLoadState('networkidle');
-    }
-
-    // הגדרת handler להורדת קבצים
-    const downloadPromise = page.waitForEvent('download');
-    await page.click(siteConfig.selectors.downloadBtn);
-    const download = await downloadPromise;
-
-    // שמירת הקובץ
-    const fileName = `${job.site_id}_${job.month}_${Date.now()}.xlsx`;
-    const filePath = path.join('/tmp', fileName);
-    await download.saveAs(filePath);
-
-    // העלאה ל-Supabase Storage
-    const fileUrl = await this.uploadToStorage(filePath, fileName, job.user_id);
-
-    // מחיקת הקובץ הזמני
-    fs.unlinkSync(filePath);
-
-    return fileUrl;
   }
 
   async uploadToStorage(filePath, fileName, userId) {
