@@ -162,6 +162,9 @@ class YellinLapidotProvider extends BaseProvider {
       console.log('Clicking continue button...');
       
       // האזנה לבקשות רשת לפני הלחיצה
+      let loginSuccess = false;
+      let loginResponse = null;
+      
       const responsePromise = new Promise((resolve) => {
         page.on('response', response => {
           const url = response.url();
@@ -175,6 +178,13 @@ class YellinLapidotProvider extends BaseProvider {
             if (url.includes('api') || url.includes('login') || url.includes('auth')) {
               response.text().then(body => {
                 console.log(`Response body: ${body.substring(0, 200)}`);
+                
+                // Check if this is a successful login response
+                if (body.includes('token') && body.includes('result')) {
+                  console.log('Login API response contains success token!');
+                  loginSuccess = true;
+                  loginResponse = response;
+                }
               }).catch(() => {});
             }
           }
@@ -228,18 +238,42 @@ class YellinLapidotProvider extends BaseProvider {
         await continueBtn.click({ force: true });
         await page.waitForTimeout(3000); // המתנה ארוכה יותר לתגובה
 
+        // Wait a bit for any network responses to complete
+        await page.waitForTimeout(2000);
+        
         let newUrl = page.url();
-        if (newUrl.includes('customer-search') || newUrl.includes('commissionsDetails')) {
+        console.log(`Current URL after click: ${newUrl}`);
+        console.log(`Login success flag: ${loginSuccess}`);
+        
+        // Check if we successfully navigated to a new page
+        if (newUrl.includes('customer-search') || newUrl.includes('commissionsDetails') || 
+            newUrl.includes('dashboard') || newUrl.includes('main') || 
+            !newUrl.includes('login')) {
           console.log('Successfully navigated after click!');
         } else if (newUrl.includes('login')) {
-          console.log('Still on login page after click. Checking for errors/captcha again.');
-          await this.saveScreenshot(page, 'after-failed-click');
+          console.log('Still on login page after click. Checking for success indicators...');
+          
+          // Check if login was actually successful by looking for success indicators
           const pageContent = await page.content();
+          const hasSuccessToken = pageContent.includes('token') || pageContent.includes('success');
+          const hasOtpField = await page.locator('input[placeholder*="קוד"], input[placeholder*="הקלד"], input[type="tel"], input[type="number"]').count() > 0;
+          const hasOtpText = pageContent.includes('קוד') || pageContent.includes('OTP') || 
+                             pageContent.includes('נשלח') || pageContent.includes('הקלד');
+          
+          // If we detected login success from API response or have OTP indicators, login was successful
+          if (loginSuccess || hasOtpField || hasOtpText || hasSuccessToken) {
+            console.log('Login successful - detected success indicators, proceeding to next step');
+            return; // Exit this method to let the OTP handling take over
+          }
+          
+          // Only check for reCAPTCHA if we don't have success indicators
           if (pageContent.includes('reCAPTCHA') || pageContent.includes('אימות')) {
             console.log('reCAPTCHA or other verification still present on login page.');
             throw new Error('Login failed: reCAPTCHA or other verification blocking progress.');
           }
-          // אם הגענו לכאן ועדיין על עמוד הלוגין, סימן שמשהו חוסם את ההתקדמות
+          
+          // If we're still here, it might be a different issue
+          await this.saveScreenshot(page, 'after-failed-click');
           throw new Error('Login failed: Did not navigate from login page after submission, possibly due to unseen validation or bot detection.');
         }
 
