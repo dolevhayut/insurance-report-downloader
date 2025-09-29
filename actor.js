@@ -1,5 +1,6 @@
 const { Actor } = require('apify');
 const { chromium } = require('playwright');
+const { LiveViewServer } = require('crawlee');
 const fs = require('fs');
 const path = require('path');
 
@@ -151,6 +152,7 @@ class InsuranceReportDownloader {
 
     let browser = null;
     let page = null;
+    let liveView = null;
     
     try {
       // קבלת input עדכני
@@ -192,6 +194,18 @@ class InsuranceReportDownloader {
       });
       
       page = await context.newPage();
+
+      // Live View (Crawlee) - exposes the page to Apify's Live view tab
+      if (isDebugMode) {
+        try {
+          liveView = new LiveViewServer();
+          await liveView.start();
+          await liveView.addWebSocketToPlaywrightPage(page);
+          console.log('Live View started and attached to page');
+        } catch (e) {
+          console.log('Live View failed to start:', e.message);
+        }
+      }
 
       // קבלת פרטי התחברות
       let vendor = providedVendor;
@@ -270,6 +284,9 @@ class InsuranceReportDownloader {
     } finally {
       if (browser) {
         await browser.close();
+      }
+      if (liveView) {
+        await liveView.stop().catch(() => {});
       }
     }
   }
