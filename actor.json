@@ -8,5 +8,9 @@
     "templateId": "playwright"
   },
   "input": "./input_schema.json",
-  "dockerfile": "./Dockerfile"
+  "dockerfile": "./Dockerfile",
+  "build": {
+    "tag": "latest",
+    "base": "apify/actor-node-playwright-chrome:20"
+  }
 }
