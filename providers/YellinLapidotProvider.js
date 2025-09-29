@@ -252,6 +252,12 @@ class YellinLapidotProvider extends BaseProvider {
       // נמשיך ל-OTP או לטיפול הבא
       await page.waitForLoadState('networkidle'); // נחכה שהעמוד יטען אחרי ניווט
       await this.saveScreenshot(page, 'after-login-attempt'); // שמירה של מצב העמוד לאחר ניסיון התחברות
+    } else {
+      throw new Error('Continue button not found');
+    }
+    } catch (error) {
+      console.error('Error in submitLoginForm:', error.message);
+      throw error;
     }
   }
 
