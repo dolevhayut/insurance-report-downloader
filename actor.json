@@ -5,7 +5,7 @@
   "description": "Downloads commission reports from insurance company portals",
   "version": "1.0.0",
   "meta": {
-    "templateId": "puppeteer"
+    "templateId": "playwright"
   },
   "input": "./input_schema.json",
   "dockerfile": "./Dockerfile"

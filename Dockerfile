@@ -1,11 +1,13 @@
-FROM apify/actor-node-puppeteer-chrome:20
+FROM apify/actor-node-playwright-chrome:20
 
 # Copy source code and package files
 COPY package*.json ./
 COPY . ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies and Playwright browsers
+RUN npm install && \
+    npx playwright install chromium && \
+    npx playwright install-deps chromium
 
 # Set environment variables
 ENV NODE_ENV=production
