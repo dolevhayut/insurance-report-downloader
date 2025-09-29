@@ -3,18 +3,151 @@
   "type": "object",
   "schemaVersion": 1,
   "properties": {
+    "mode": {
+      "title": "Mode",
+      "type": "string",
+      "description": "Run mode - single provider or all providers",
+      "editor": "select",
+      "enum": ["single", "all"],
+      "enumTitles": ["Single Provider", "All Providers"],
+      "default": "single"
+    },
+    "provider": {
+      "title": "Insurance Provider",
+      "type": "string",
+      "description": "Select the insurance provider (required if mode is 'single')",
+      "editor": "select",
+      "enum": [
+        "ayalon",
+        "migdal",
+        "altshuler_shaham",
+        "yellin_lapidot",
+        "clal",
+        "passportcard",
+        "fnx",
+        "harel",
+        "menorah",
+        "phoenix",
+        "direct",
+        "shirbit",
+        "hasneh",
+        "yashir",
+        "halachmi",
+        "gadish",
+        "shoham",
+        "ariel",
+        "binah"
+      ],
+      "enumTitles": [
+        "איילון",
+        "מגדל",
+        "אלטשולר שחם",
+        "ילין לפידות",
+        "כלל ביטוח",
+        "פספורט קארד",
+        "Fnx",
+        "הראל ביטוח",
+        "מנורה מבטחים",
+        "פניקס ביטוח",
+        "דיירקט ביטוח",
+        "שירביט ביטוח",
+        "הסנה ביטוח",
+        "ישיר ביטוח",
+        "חלכמי ביטוח",
+        "גדיש ביטוח",
+        "שוהם ביטוח",
+        "אריאל ביטוח",
+        "בינה ביטוח"
+      ]
+    },
+    "credentialsSource": {
+      "title": "Credentials Source",
+      "type": "string",
+      "description": "Where to get credentials from",
+      "editor": "select",
+      "enum": ["manual", "mapping", "supabase"],
+      "enumTitles": ["Manual Input", "Mapping File", "Supabase Database"],
+      "default": "manual"
+    },
+    "credentials": {
+      "title": "Manual Credentials",
+      "type": "object",
+      "description": "Enter credentials manually (required if credentialsSource is 'manual')",
+      "editor": "json",
+      "properties": {
+        "username": {
+          "title": "Username",
+          "type": "string",
+          "description": "Username or agent number"
+        },
+        "password": {
+          "title": "Password",
+          "type": "string",
+          "description": "Password"
+        },
+        "id": {
+          "title": "ID Number",
+          "type": "string",
+          "description": "ID number (for sites that require it)"
+        },
+        "license": {
+          "title": "License Number",
+          "type": "string",
+          "description": "License number (for sites that require it)"
+        },
+        "phone": {
+          "title": "Phone Number",
+          "type": "string",
+          "description": "Phone number (for sites that require it)"
+        },
+        "agency": {
+          "title": "Agency Name",
+          "type": "string",
+          "description": "Agency name (for sites that require it)"
+        }
+      }
+    },
     "userId": {
       "title": "User ID",
       "type": "string",
-      "description": "Supabase user ID",
+      "description": "Supabase user ID (required if credentialsSource is 'supabase')",
       "editor": "textfield"
     },
     "month": {
       "title": "Month",
       "type": "string",
       "description": "Report month in YYYY-MM format",
-      "editor": "textfield"
+      "editor": "textfield",
+      "default": "2024-12"
+    },
+    "handleOtp": {
+      "title": "Handle OTP",
+      "type": "boolean",
+      "description": "Wait for OTP input if required",
+      "default": true
     }
   },
-  "required": ["userId", "month"]
+  "required": ["mode", "month"],
+  "dependencies": {
+    "mode": {
+      "oneOf": [
+        {
+          "properties": {
+            "mode": {
+              "enum": ["single"]
+            }
+          },
+          "required": ["provider", "credentialsSource"]
+        },
+        {
+          "properties": {
+            "mode": {
+              "enum": ["all"]
+            }
+          },
+          "required": ["userId"]
+        }
+      ]
+    }
+  }
 }

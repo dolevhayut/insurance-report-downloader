@@ -26,30 +26,24 @@ class InsuranceReportDownloader {
       
       // קבלת פרמטרים מה-input
       const input = await Actor.getInput();
-      this.userId = input.userId;
       this.month = input.month;
+      this.handleOtp = input.handleOtp !== false;
 
-      if (!this.userId || !this.month) {
-        throw new Error('Missing required parameters: userId and month');
+      if (!this.month) {
+        throw new Error('Missing required parameter: month');
       }
 
-      // שליפת כל ה-jobs של המשתמש
-      const { data: jobs, error } = await this.supabase
-        .from('jobs')
-        .select('*')
-        .eq('user_id', this.userId)
-        .eq('status', 'waiting')
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        throw new Error(`Failed to fetch jobs: ${error.message}`);
-      }
-
-      console.log(`Found ${jobs.length} jobs to process`);
-
-      // עיבוד כל job
-      for (const job of jobs) {
-        await this.processJob(job);
+      // טיפול במודים שונים
+      if (input.mode === 'single') {
+        // מוד יחיד - הרצה של ספק אחד
+        await this.runSingleProvider(input);
+      } else {
+        // מוד מרובה - הרצה של כל הספקים מהדאטאבייס
+        this.userId = input.userId;
+        if (!this.userId) {
+          throw new Error('Missing required parameter: userId for all providers mode');
+        }
+        await this.runAllProviders();
       }
 
     } catch (error) {
@@ -58,7 +52,82 @@ class InsuranceReportDownloader {
     }
   }
 
-  async processJob(job) {
+  async runSingleProvider(input) {
+    const { provider, credentialsSource, credentials } = input;
+    
+    if (!provider) {
+      throw new Error('Provider is required in single mode');
+    }
+
+    // קבלת פרטי התחברות
+    let vendorCredentials;
+    
+    if (credentialsSource === 'manual') {
+      vendorCredentials = credentials;
+    } else if (credentialsSource === 'mapping') {
+      // טעינת פרטי התחברות מהמיפוי
+      try {
+        const credentialsMapping = require('./credentials_mapping.json');
+        vendorCredentials = credentialsMapping.credentials[provider];
+        if (!vendorCredentials) {
+          throw new Error(`No credentials found for provider: ${provider}`);
+        }
+      } catch (error) {
+        throw new Error(`Failed to load credentials mapping: ${error.message}`);
+      }
+    } else if (credentialsSource === 'supabase') {
+      // שליפת פרטי התחברות מהדאטאבייס
+      if (!input.userId) {
+        throw new Error('userId is required when using Supabase credentials');
+      }
+      const { data: vendor, error } = await this.supabase
+        .from('user_insur_vendors')
+        .select('*')
+        .eq('user_id', input.userId)
+        .eq('site_id', provider)
+        .single();
+        
+      if (error || !vendor) {
+        throw new Error(`No credentials found in database for provider: ${provider}`);
+      }
+      vendorCredentials = vendor;
+    }
+
+    // יצירת job זמני
+    const job = {
+      id: `temp_${Date.now()}`,
+      user_id: input.userId || 'manual',
+      site_id: provider,
+      month: this.month,
+      status: 'running'
+    };
+
+    console.log(`Running single provider: ${provider}`);
+    await this.processJob(job, vendorCredentials);
+  }
+
+  async runAllProviders() {
+    // שליפת כל ה-jobs של המשתמש
+    const { data: jobs, error } = await this.supabase
+      .from('jobs')
+      .select('*')
+      .eq('user_id', this.userId)
+      .eq('status', 'waiting')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch jobs: ${error.message}`);
+    }
+
+    console.log(`Found ${jobs.length} jobs to process`);
+
+    // עיבוד כל job
+    for (const job of jobs) {
+      await this.processJob(job);
+    }
+  }
+
+  async processJob(job, providedVendor = null) {
     const siteConfig = sitesConfig.find(site => site.siteId === job.site_id);
     if (!siteConfig) {
       await this.updateJobStatus(job.id, 'error', null, `Site configuration not found for ${job.site_id}`);
@@ -67,8 +136,10 @@ class InsuranceReportDownloader {
 
     console.log(`Processing job ${job.id} for site ${job.site_id}`);
 
-    // עדכון סטטוס ל-running
-    await this.updateJobStatus(job.id, 'running');
+    // עדכון סטטוס ל-running רק אם זה לא job זמני
+    if (!job.id.startsWith('temp_')) {
+      await this.updateJobStatus(job.id, 'running');
+    }
 
     let browser = null;
     try {
@@ -80,16 +151,22 @@ class InsuranceReportDownloader {
       const context = await browser.newContext();
       const page = await context.newPage();
 
-      // שליפת פרטי התחברות
-      const { data: vendor, error: vendorError } = await this.supabase
-        .from('user_insur_vendors')
-        .select('*')
-        .eq('user_id', job.user_id)
-        .eq('site_id', job.site_id)
-        .single();
+      // קבלת פרטי התחברות
+      let vendor = providedVendor;
+      
+      if (!vendor) {
+        // שליפת פרטי התחברות מהדאטאבייס
+        const { data: dbVendor, error: vendorError } = await this.supabase
+          .from('user_insur_vendors')
+          .select('*')
+          .eq('user_id', job.user_id)
+          .eq('site_id', job.site_id)
+          .single();
 
-      if (vendorError || !vendor) {
-        throw new Error(`Vendor credentials not found for ${job.site_id}`);
+        if (vendorError || !dbVendor) {
+          throw new Error(`Vendor credentials not found for ${job.site_id}`);
+        }
+        vendor = dbVendor;
       }
 
       // התחברות לאתר
@@ -98,14 +175,21 @@ class InsuranceReportDownloader {
       // הורדת הדוח
       const fileUrl = await this.downloadReport(page, siteConfig, job);
 
-      // עדכון סטטוס להצלחה
-      await this.updateJobStatus(job.id, 'done', fileUrl);
+      // עדכון סטטוס להצלחה רק אם זה לא job זמני
+      if (!job.id.startsWith('temp_')) {
+        await this.updateJobStatus(job.id, 'done', fileUrl);
+      } else {
+        console.log(`Report downloaded successfully: ${fileUrl}`);
+      }
 
       console.log(`Successfully processed job ${job.id}`);
 
     } catch (error) {
       console.error(`Failed to process job ${job.id}:`, error);
-      await this.updateJobStatus(job.id, 'error', null, error.message);
+      if (!job.id.startsWith('temp_')) {
+        await this.updateJobStatus(job.id, 'error', null, error.message);
+      }
+      throw error;
     } finally {
       if (browser) {
         await browser.close();
@@ -174,28 +258,55 @@ class InsuranceReportDownloader {
   async handleOTP(page, siteConfig, job) {
     console.log(`OTP required for ${siteConfig.displayName}`);
 
-    // יצירת בקשה ל-OTP
-    const { error: otpError } = await this.supabase
-      .from('otp_requests')
-      .insert({
-        job_id: job.id,
-        user_id: job.user_id,
-        site_id: job.site_id,
-        status: 'waiting'
-      });
-
-    if (otpError) {
-      throw new Error(`Failed to create OTP request: ${otpError.message}`);
+    // בדיקה אם להמתין ל-OTP
+    if (!this.handleOtp) {
+      throw new Error('OTP required but handleOtp is disabled');
     }
 
-    // עדכון סטטוס job ל-OTP
-    await this.updateJobStatus(job.id, 'otp');
-
-    // המתנה ל-OTP מהמשתמש
-    const otp = await this.waitForOTP(job.id);
+    let otp;
     
-    if (!otp) {
-      throw new Error('OTP not provided by user');
+    // אם זה job זמני, נבקש OTP מה-console
+    if (job.id.startsWith('temp_')) {
+      console.log('\n=== OTP REQUIRED ===');
+      console.log(`Please enter the OTP code for ${siteConfig.displayName}:`);
+      console.log('Waiting for OTP input in Apify logs...');
+      console.log('\nNote: In production, enter the OTP in the Apify console input field.');
+      
+      // בסביבת Apify, ניתן להזין את ה-OTP דרך ה-console
+      // כאן נחכה זמן קבוע ונניח שהמשתמש יזין את הקוד
+      await new Promise(resolve => setTimeout(resolve, 60000)); // המתנה של דקה
+      
+      // בפועל, ב-Apify יש אפשרות להזין input נוסף תוך כדי ריצה
+      const additionalInput = await Actor.getInput();
+      otp = additionalInput?.otp;
+      
+      if (!otp) {
+        throw new Error('OTP not provided within timeout');
+      }
+    } else {
+      // יצירת בקשה ל-OTP בדאטאבייס
+      const { error: otpError } = await this.supabase
+        .from('otp_requests')
+        .insert({
+          job_id: job.id,
+          user_id: job.user_id,
+          site_id: job.site_id,
+          status: 'waiting'
+        });
+
+      if (otpError) {
+        throw new Error(`Failed to create OTP request: ${otpError.message}`);
+      }
+
+      // עדכון סטטוס job ל-OTP
+      await this.updateJobStatus(job.id, 'otp');
+
+      // המתנה ל-OTP מהמשתמש
+      otp = await this.waitForOTP(job.id);
+      
+      if (!otp) {
+        throw new Error('OTP not provided by user');
+      }
     }
 
     // הזנת OTP
@@ -311,6 +422,12 @@ class InsuranceReportDownloader {
   }
 
   async updateJobStatus(jobId, status, fileUrl = null, errorMessage = null) {
+    // אם זה job זמני, רק נדפיס לוג
+    if (jobId.startsWith('temp_')) {
+      console.log(`[Temp Job ${jobId}] Status: ${status}${fileUrl ? `, File: ${fileUrl}` : ''}${errorMessage ? `, Error: ${errorMessage}` : ''}`);
+      return;
+    }
+    
     const updateData = { status };
     if (fileUrl) updateData.file_url = fileUrl;
     if (errorMessage) updateData.error_message = errorMessage;
