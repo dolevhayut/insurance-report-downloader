@@ -4,10 +4,8 @@ FROM apify/actor-node-playwright-chrome:20
 COPY package*.json ./
 COPY . ./
 
-# Install dependencies and Playwright browsers
-RUN npm install && \
-    npx playwright install chromium && \
-    npx playwright install-deps chromium
+# Install dependencies only (Playwright is already installed in the base image)
+RUN npm install
 
 # Set environment variables
 ENV NODE_ENV=production
