@@ -77,18 +77,35 @@ class BaseProvider {
     if (this.job.id.startsWith('temp_')) {
       console.log('\n=== OTP REQUIRED ===');
       console.log(`Please enter the OTP code for ${this.displayName}:`);
-      console.log('Waiting for OTP input in Apify logs...');
+      console.log('You have 3 minutes to add "otp" field to the input in Apify Console');
+      console.log('Go to Input tab and add: {"otp": "YOUR_CODE_HERE"}');
       
-      await new Promise(resolve => setTimeout(resolve, 60000));
+      const maxWaitTime = 180000; // 3 דקות
+      const checkInterval = 5000; // בדיקה כל 5 שניות
+      let waitedTime = 0;
       
-      const additionalInput = await Actor.getInput();
-      const otp = additionalInput?.otp;
-      
-      if (!otp) {
-        throw new Error('OTP not provided within timeout');
+      while (waitedTime < maxWaitTime) {
+        // נבדוק אם יש OTP בקלט
+        const additionalInput = await Actor.getInput();
+        const otp = additionalInput?.otp;
+        
+        if (otp) {
+          console.log('OTP received!');
+          return otp;
+        }
+        
+        // הצגת התקדמות
+        const remainingTime = Math.ceil((maxWaitTime - waitedTime) / 1000);
+        if (waitedTime % 30000 === 0) { // כל 30 שניות
+          console.log(`Still waiting for OTP... ${remainingTime} seconds remaining`);
+        }
+        
+        // המתנה לבדיקה הבאה
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        waitedTime += checkInterval;
       }
       
-      return otp;
+      throw new Error('OTP not provided within 3 minutes timeout');
     }
     
     // אחרת - טיפול רגיל דרך הדאטאבייס
