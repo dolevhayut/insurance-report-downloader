@@ -343,16 +343,40 @@ class InsuranceReportDownloader {
       
       // בחירת SMS אם יש
       if (siteConfig.selectors.smsRadio) {
-        await page.click(siteConfig.selectors.smsRadio);
+        try {
+          // נסה עם text selector של Playwright
+          await page.locator('text=בהודעת SMS').click();
+        } catch (e) {
+          console.log('Could not click SMS radio with text selector, trying alternative...');
+          // נסה למצוא את ה-radio button עצמו
+          await page.locator('input[type="radio"][value="SMS"]').click();
+        }
       }
       
       // סימון צ'קבוקס תנאי שימוש
       if (siteConfig.selectors.termsCheckbox) {
-        await page.click(siteConfig.selectors.termsCheckbox);
+        try {
+          // נסה עם text selector
+          await page.locator('text=אני מאשר').click();
+        } catch (e) {
+          console.log('Could not click terms checkbox with text selector, trying alternative...');
+          // נסה למצוא checkbox
+          await page.locator('input[type="checkbox"]').first().click();
+        }
       }
       
       // לחיצה על כפתור המשך
-      await page.click(siteConfig.selectors.continueBtn);
+      try {
+        await page.locator('button:has-text("המשך")').click();
+      } catch (e) {
+        console.log('Could not click continue button with text selector, trying alternatives...');
+        // נסיונות נוספים
+        try {
+          await page.locator('text=המשך').click();
+        } catch (e2) {
+          await page.locator('button[type="submit"]').click();
+        }
+      }
       
     } else if (siteConfig.siteId === 'altshuler_shaham') {
       // אלטשולר שחם - רישיון ותעודת זהות

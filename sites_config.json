@@ -107,9 +107,9 @@
     "selectors": {
       "idField": "input[placeholder='תעודת זהות של מורשה גישה']",
       "phoneField": "input[placeholder='טלפון נייד']",
-      "smsRadio": "label:contains('בהודעת SMS')",
-      "termsCheckbox": "label:contains('אני מאשר/ת את')",
-      "continueBtn": "button:contains('המשך')",
+      "smsRadio": "text=בהודעת SMS",
+      "termsCheckbox": "text=אני מאשר",
+      "continueBtn": "button >> text=המשך",
       "otpInput": "input[placeholder='הקלד קוד']",
       "agencySelect": "input",
       "commissionsMenu": "button:contains('עמלות')",
