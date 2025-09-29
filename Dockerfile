@@ -9,7 +9,7 @@ RUN npm install
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV DISPLAY=:99
+# ENV DISPLAY=:99 # הוסר עקב הסרת Live View
 
 # Run the actor
 CMD ["node", "actor.js"]

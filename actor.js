@@ -1,6 +1,6 @@
 const { Actor } = require('apify');
 const { chromium } = require('playwright');
-const { LiveViewServer } = require('crawlee');
+// const { LiveViewServer } = require('crawlee'); // מוסר עקב בעיות
 const fs = require('fs');
 const path = require('path');
 
@@ -152,15 +152,15 @@ class InsuranceReportDownloader {
 
     let browser = null;
     let page = null;
-    let liveView = null;
-    
+    let liveView = null; // ישאר null ללא Live View
+
     try {
       // קבלת input עדכני
       const currentInput = await Actor.getInput() || {};
-      
+
       // פתיחת דפדפן
       const isDebugMode = process.env.DEBUG_MODE === 'true' || currentInput.debugMode === true;
-      
+
       browser = await chromium.launch({ 
         headless: !isDebugMode, // אם במצב דיבאג, הפעל עם UI
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -170,13 +170,13 @@ class InsuranceReportDownloader {
           devtools: false
         })
       });
-      
+
       if (isDebugMode) {
         console.log('=== DEBUG MODE ENABLED ===');
         console.log('Browser running in non-headless mode');
         console.log('Actions will be slower for visibility');
       }
-      
+
       const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1920, height: 1080 },
@@ -186,30 +186,36 @@ class InsuranceReportDownloader {
           'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
           'Accept-Encoding': 'gzip, deflate, br',
           'DNT': '1',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
+          'Connection': 'keep-alive'
+          // 'Upgrade-Insecure-Requests': '1' // מוסר עקב בעיות CORS עם reCAPTCHA
         },
         javaScriptEnabled: true,
         ignoreHTTPSErrors: true
       });
-      
+
       page = await context.newPage();
 
-      // Live View (Crawlee) - exposes the page to Apify's Live view tab
+      // Live View (Crawlee) - הוסר
+      /*
       if (isDebugMode) {
         try {
-          liveView = new LiveViewServer();
-          await liveView.start();
-          await liveView.addWebSocketToPlaywrightPage(page);
-          console.log('Live View started and attached to page');
+          if (typeof LiveViewServer !== 'undefined') {
+            liveView = new LiveViewServer();
+            await liveView.start();
+            await liveView.addWebSocketToPlaywrightPage(page);
+            console.log('Live View started and attached to page');
+          } else {
+            console.log('LiveViewServer not found in current Crawlee version, skipping Live View.');
+          }
         } catch (e) {
           console.log('Live View failed to start:', e.message);
         }
       }
+      */
 
       // קבלת פרטי התחברות
       let vendor = providedVendor;
-      
+
       if (!vendor) {
         // שליפת פרטי התחברות מהדאטאבייס
         const { data: dbVendor, error: vendorError } = await this.supabase
@@ -227,29 +233,30 @@ class InsuranceReportDownloader {
 
       // יצירת provider instance
       const provider = ProviderFactory.getProvider(job.site_id, siteConfig, vendor, job);
+      this.providerInstance = provider; // שמירת instance לגישה עתידית
       
       // התחברות
       await provider.login(page);
-      
+
       // טיפול ב-OTP אם נדרש
       if (siteConfig.needsOtp && vendor.needs_otp !== false && this.handleOtp) {
         await provider.handleOTP(page);
       }
-      
+
       // ניווט לעמוד הדוחות
       await provider.navigateToReports(page);
-      
+
       // הורדת הדוח
       const download = await provider.downloadReport(page, this.month);
-      
+
       // שמירת הקובץ
       const fileName = `${job.site_id}_${this.month}_${Date.now()}.xlsx`;
       const filePath = path.join('/tmp', fileName);
       await download.saveAs(filePath);
-      
+
       // העלאה ל-Supabase Storage
       const fileUrl = await this.uploadToStorage(filePath, fileName, job.user_id);
-      
+
       // מחיקת הקובץ הזמני
       fs.unlinkSync(filePath);
 
@@ -264,7 +271,7 @@ class InsuranceReportDownloader {
 
     } catch (error) {
       console.error(`Failed to process job ${job.id}:`, error);
-      
+
       // שמירת screenshot לדיבאג
       if (page) {
         try {
@@ -276,7 +283,7 @@ class InsuranceReportDownloader {
           console.error('Failed to save error screenshot:', screenshotError.message);
         }
       }
-      
+
       if (!job.id.startsWith('temp_')) {
         await this.updateJobStatus(job.id, 'error', null, error.message);
       }
@@ -285,9 +292,9 @@ class InsuranceReportDownloader {
       if (browser) {
         await browser.close();
       }
-      if (liveView) {
-        await liveView.stop().catch(() => {});
-      }
+      // if (liveView) { // הוסר
+      //   await liveView.stop().catch(() => {});
+      // }
     }
   }
 

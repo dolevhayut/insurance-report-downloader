@@ -129,12 +129,6 @@
       "type": "string",
       "description": "OTP code (enter during runtime when requested)",
       "editor": "textfield"
-    },
-    "debugMode": {
-      "title": "Debug Mode (Live View)",
-      "type": "boolean",
-      "description": "Enable to see browser actions in real-time (slower but visible)",
-      "default": false
     }
   },
   "required": ["mode", "month"]

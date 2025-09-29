@@ -211,8 +211,6 @@ class YellinLapidotProvider extends BaseProvider {
         }
       });
       
-      console.log('About to click continue button...');
-      
       // ננסה כמה שיטות ללחיצה
       try {
         // קודם נוודא שה-checkbox באמת מוגדר נכון
@@ -225,193 +223,35 @@ class YellinLapidotProvider extends BaseProvider {
             checkbox.setAttribute('checked', 'checked');
           }
         });
-        
-        // שיטה 1: לחיצה רגילה עם force
+
+        // לחיצה רגילה עם force
         await continueBtn.click({ force: true });
-        await page.waitForTimeout(2000);
-        
-        // בדיקה אם עברנו עמוד
+        await page.waitForTimeout(3000); // המתנה ארוכה יותר לתגובה
+
         let newUrl = page.url();
-        if (newUrl === 'https://online.yl-invest.co.il/agents/login') {
-          console.log('Regular click did not work, trying direct navigation...');
-          
-          // שיטה 2: הפעלת הכפתור דרך JavaScript
-          await page.evaluate(() => {
-            const btn = document.querySelector('button');
-            if (btn && btn.textContent.includes('המשך')) {
-              console.log('Triggering button click via JavaScript');
-              btn.click();
-              
-              // ננסה גם להפעיל events
-              const clickEvent = new MouseEvent('click', {
-                view: window,
-                bubbles: true,
-                cancelable: true
-              });
-              btn.dispatchEvent(clickEvent);
-            }
-          });
-          
-          await page.waitForTimeout(2000);
-          newUrl = page.url();
-          
-          if (newUrl === 'https://online.yl-invest.co.il/agents/login') {
-            console.log('JavaScript click also did not work, trying direct URL navigation...');
-            
-            // שיטה 3: ניווט ישיר עם הפרמטרים הנכונים
-            const idValue = await page.locator(this.siteConfig.selectors.idField).inputValue();
-            const phoneValue = await page.locator(this.siteConfig.selectors.phoneField).inputValue();
-            const method = await page.locator('input[type="radio"]:checked').getAttribute('value') || '1';
-            
-            const directUrl = `https://online.yl-invest.co.il/agents/login?personalId=${idValue}&mobileNumber=${phoneValue}&method=${method}&confirm=on`;
-            console.log('Navigating directly to:', directUrl);
-            
-            await page.goto(directUrl, { waitUntil: 'networkidle' });
-            await page.waitForTimeout(2000);
-            
-            newUrl = page.url();
+        if (newUrl.includes('customer-search') || newUrl.includes('commissionsDetails')) {
+          console.log('Successfully navigated after click!');
+        } else if (newUrl.includes('login')) {
+          console.log('Still on login page after click. Checking for errors/captcha again.');
+          await this.saveScreenshot(page, 'after-failed-click');
+          const pageContent = await page.content();
+          if (pageContent.includes('reCAPTCHA') || pageContent.includes('אימות')) {
+            console.log('reCAPTCHA or other verification still present on login page.');
+            throw new Error('Login failed: reCAPTCHA or other verification blocking progress.');
           }
-          
-          if (newUrl === 'https://online.yl-invest.co.il/agents/login') {
-            console.log('Direct navigation also did not work, trying form submit...');
-            
-            // שיטה 3: שליחת הטופס ישירות
-            const formInfo = await page.evaluate(() => {
-              const forms = document.querySelectorAll('form');
-              if (forms.length > 0) {
-                const form = forms[0];
-                
-                // בדיקת פרטי הטופס
-                const formData = {};
-                const inputs = form.querySelectorAll('input, select');
-                inputs.forEach(input => {
-                  if (input.name) {
-                    if (input.type === 'checkbox') {
-                      formData[input.name] = input.checked ? (input.value || 'on') : '';
-                    } else if (input.type === 'radio') {
-                      if (input.checked) {
-                        formData[input.name] = input.value;
-                      }
-                    } else {
-                      formData[input.name] = input.value;
-                    }
-                  }
-                });
-                
-                console.log('Form data:', formData);
-                console.log('Form action:', form.action);
-                console.log('Form method:', form.method);
-                
-                // וידוא שה-checkbox מסומן
-                const checkbox = form.querySelector('input[type="checkbox"]');
-                if (checkbox && !checkbox.checked) {
-                  console.log('Checkbox not checked! Setting it...');
-                  checkbox.checked = true;
-                  checkbox.value = 'on';
-                }
-                
-                // שליחת הטופס
-                if (form.onsubmit) {
-                  console.log('Calling form.onsubmit()');
-                  const result = form.onsubmit();
-                  if (result !== false) {
-                    form.submit();
-                  }
-                } else {
-                  console.log('Direct form.submit()');
-                  form.submit();
-                }
-                
-                return formData;
-              }
-              return null;
-            });
-            
-            console.log('Form submission info:', formInfo);
-          }
+          // אם הגענו לכאן ועדיין על עמוד הלוגין, סימן שמשהו חוסם את ההתקדמות
+          throw new Error('Login failed: Did not navigate from login page after submission, possibly due to unseen validation or bot detection.');
         }
+
       } catch (clickError) {
-        console.error('Error during click attempts:', clickError.message);
+        console.error('Error during login attempts:', clickError.message);
+        throw clickError;
       }
-      
-      // המתנה קצרה לתגובת השרת
-      await page.waitForTimeout(2000);
-      
-      // בדיקה אם נשארנו באותו עמוד
-      const currentUrl = page.url();
-      console.log(`After click URL: ${currentUrl}`);
-      
-      // בדיקה מקיפה יותר להודעות שגיאה
-      const possibleErrorSelectors = [
-        '.error', '.alert', '[role="alert"]', '.text-danger',
-        '.message', '.notification', '.toast',
-        'div[style*="color: red"]', 'span[style*="color: red"]',
-        'div[class*="error"]', 'span[class*="error"]'
-      ];
-      
-      for (const selector of possibleErrorSelectors) {
-        const elements = await page.locator(selector).all();
-        for (const element of elements) {
-          const text = await element.textContent();
-          if (text && text.trim().length > 0) {
-            console.log(`Found message (${selector}): ${text.trim()}`);
-          }
-        }
-      }
-      
-      // בדיקה אם יש אלמנט שמכיל את המילה "שגיאה" או "Error"
-      const hebrewErrors = await page.locator('text=/שגיאה|תקלה|נכשל|בעיה/').all();
-      for (const error of hebrewErrors) {
-        console.log('Hebrew error found:', await error.textContent());
-      }
-      
-      await this.saveScreenshot(page, 'after-continue');
-      
-      // אם נשארנו באותו עמוד, ננסה ללחוץ שוב
-      if (currentUrl === 'https://online.yl-invest.co.il/agents/login') {
-        console.log('Still on login page, might be validation error or captcha');
-        
-        // בדיקה אם יש captcha
-        const captchaExists = await page.locator('iframe[src*="recaptcha"], div[class*="captcha"], .g-recaptcha').count() > 0;
-        if (captchaExists) {
-          console.log('CAPTCHA detected on page!');
-          throw new Error('CAPTCHA verification required - manual intervention needed');
-        }
-        
-        // בדיקה אם יש form בכלל
-        const forms = await page.locator('form').all();
-        console.log(`Found ${forms.length} forms on page`);
-        
-        // בדיקה אם הטופס נשלח בכלל
-        const currentIdValue = await page.locator(this.siteConfig.selectors.idField).inputValue();
-        const currentPhoneValue = await page.locator(this.siteConfig.selectors.phoneField).inputValue();
-        console.log(`Form values after click - ID: ${currentIdValue}, Phone: ${currentPhoneValue}`);
-        
-        // ננסה ללחוץ על Enter במקום על הכפתור
-        console.log('Trying to submit form with Enter key...');
-        await page.locator(this.siteConfig.selectors.phoneField).press('Enter');
-        await page.waitForTimeout(3000);
-        
-        const newUrl = page.url();
-        if (newUrl === currentUrl) {
-          console.log('Enter key also did not work, form might have JavaScript validation');
-          
-          // ננסה להפעיל את הטופס ישירות
-          await page.evaluate(() => {
-            const forms = document.querySelectorAll('form');
-            if (forms.length > 0) {
-              console.log('Submitting form directly via JavaScript');
-              forms[0].submit();
-            }
-          });
-          
-          await page.waitForTimeout(3000);
-        }
-      }
-      }
-    } catch (error) {
-      console.error('Error submitting form:', error.message);
-      throw error;
+
+      // אם הגענו לכאן, סימן שהתהליך הצליח או שיש בעיה אחרת
+      // נמשיך ל-OTP או לטיפול הבא
+      await page.waitForLoadState('networkidle'); // נחכה שהעמוד יטען אחרי ניווט
+      await this.saveScreenshot(page, 'after-login-attempt'); // שמירה של מצב העמוד לאחר ניסיון התחברות
     }
   }
 
