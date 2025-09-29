@@ -119,12 +119,50 @@ class InsuranceReportDownloader {
     // מעבר לעמוד התחברות
     await page.goto(siteConfig.loginUrl, { waitUntil: 'networkidle' });
 
-    // מילוי פרטי התחברות
-    await page.fill(siteConfig.selectors.username, vendor.username);
-    await page.fill(siteConfig.selectors.password, vendor.password);
-
-    // לחיצה על כפתור התחברות
-    await page.click(siteConfig.selectors.loginBtn);
+    // טיפול בסוגי התחברות שונים
+    if (siteConfig.siteId === 'yellin_lapidot') {
+      // ילין לפידות - תעודת זהות וטלפון
+      await page.fill(siteConfig.selectors.idField, vendor.id || vendor.username);
+      await page.fill(siteConfig.selectors.phoneField, vendor.phone || vendor.password);
+      
+      // בחירת SMS אם יש
+      if (siteConfig.selectors.smsRadio) {
+        await page.click(siteConfig.selectors.smsRadio);
+      }
+      
+      // סימון צ'קבוקס תנאי שימוש
+      if (siteConfig.selectors.termsCheckbox) {
+        await page.click(siteConfig.selectors.termsCheckbox);
+      }
+      
+      // לחיצה על כפתור המשך
+      await page.click(siteConfig.selectors.continueBtn);
+      
+    } else if (siteConfig.siteId === 'altshuler_shaham') {
+      // אלטשולר שחם - רישיון ותעודת זהות
+      if (siteConfig.selectors.idTypeRadio) {
+        await page.click(siteConfig.selectors.idTypeRadio);
+      }
+      await page.fill(siteConfig.selectors.licenseField, vendor.license || vendor.username);
+      await page.fill(siteConfig.selectors.idField, vendor.id || vendor.password);
+      
+      // לחיצה על שלח קוד
+      await page.click(siteConfig.selectors.sendCodeBtn);
+      
+    } else {
+      // התחברות רגילה - שם משתמש וסיסמה
+      await page.fill(siteConfig.selectors.username, vendor.username);
+      await page.fill(siteConfig.selectors.password, vendor.password);
+      
+      // סימון צ'קבוקס תנאי שימוש אם יש
+      if (siteConfig.selectors.termsCheckbox) {
+        await page.click(siteConfig.selectors.termsCheckbox);
+      }
+      
+      // לחיצה על כפתור התחברות
+      await page.click(siteConfig.selectors.loginBtn);
+    }
+    
     await page.waitForLoadState('networkidle');
 
     // בדיקה אם נדרש OTP
@@ -161,8 +199,24 @@ class InsuranceReportDownloader {
     }
 
     // הזנת OTP
-    await page.fill(siteConfig.selectors.otpInput, otp);
-    await page.click(siteConfig.selectors.otpSubmit);
+    if (siteConfig.siteId === 'altshuler_shaham' && Array.isArray(siteConfig.selectors.otpFields)) {
+      // אלטשולר שחם - 6 שדות נפרדים ל-OTP
+      const otpDigits = otp.split('');
+      for (let i = 0; i < Math.min(otpDigits.length, siteConfig.selectors.otpFields.length); i++) {
+        await page.fill(siteConfig.selectors.otpFields[i], otpDigits[i]);
+      }
+    } else {
+      // OTP רגיל - שדה אחד
+      await page.fill(siteConfig.selectors.otpInput, otp);
+    }
+    
+    // לחיצה על כפתור אישור
+    if (siteConfig.selectors.otpSubmit) {
+      await page.click(siteConfig.selectors.otpSubmit);
+    } else if (siteConfig.selectors.loginBtn) {
+      await page.click(siteConfig.selectors.loginBtn);
+    }
+    
     await page.waitForLoadState('networkidle');
 
     // עדכון סטטוס OTP ל-consumed
