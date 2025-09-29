@@ -99,52 +99,84 @@ class BaseProvider {
   async waitForOTP() {
     console.log('Waiting for OTP...');
     
-    // אם זה job זמני, נחכה לקלט
-    if (this.job.id.startsWith('temp_')) {
-      console.log('\n=== OTP REQUIRED ===');
-      console.log(`Please enter the OTP code for ${this.displayName}:`);
-      console.log('You have 3 minutes to add OTP field to the input in Apify Console');
-      console.log('Go to Input tab and add one of these:');
-      console.log('  - "otp": "YOUR_CODE_HERE"');
-      console.log('  - "OTP": "YOUR_CODE_HERE"');
-      console.log('  - "OTP Code": "YOUR_CODE_HERE"');
-      console.log('  - "otpCode": "YOUR_CODE_HERE"');
-      
-      const maxWaitTime = 180000; // 3 דקות
-      const checkInterval = 5000; // בדיקה כל 5 שניות
-      let waitedTime = 0;
-      
-      while (waitedTime < maxWaitTime) {
-        // נבדוק אם יש OTP בקלט - נחפש בשמות שונים
+    // יצירת מפתח ייחודי לOTP
+    const otpKey = `otp_${this.job.id}_${this.job.site_id}`;
+    
+    // פרסום מידע על הצורך ב-OTP
+    await Actor.setValue(`otp_request_${this.job.id}`, {
+      status: 'waiting',
+      site: this.displayName,
+      site_id: this.job.site_id,
+      job_id: this.job.id,
+      timestamp: new Date().toISOString(),
+      phone_last_digits: this.vendor.phone?.slice(-4) || 'unknown'
+    });
+    
+    console.log('\n=== OTP REQUIRED ===');
+    console.log(`Waiting for OTP code for ${this.displayName}`);
+    console.log(`OTP Key: ${otpKey}`);
+    console.log(`Job ID: ${this.job.id}`);
+    console.log('The application should send the OTP using Actor.setValue()');
+    
+    const maxWaitTime = 180000; // 3 דקות
+    const checkInterval = 2000; // בדיקה כל 2 שניות (מהיר יותר לזמן אמת)
+    let waitedTime = 0;
+    
+    while (waitedTime < maxWaitTime) {
+      try {
+        // נבדוק אם יש OTP ב-Key-Value Store
+        const otpData = await Actor.getValue(otpKey);
+        
+        if (otpData && otpData.otp) {
+          console.log(`OTP received: ${otpData.otp}`);
+          
+          // נמחק את ה-OTP מהחנות לאבטחה
+          await Actor.setValue(otpKey, null);
+          
+          // נעדכן את הסטטוס
+          await Actor.setValue(`otp_request_${this.job.id}`, {
+            status: 'received',
+            timestamp: new Date().toISOString()
+          });
+          
+          return otpData.otp;
+        }
+        
+        // בדיקה גם ב-Input כגיבוי (לשימוש מהקונסולה)
         const additionalInput = await Actor.getInput();
-        const otp = additionalInput?.otp || 
-                   additionalInput?.OTP || 
-                   additionalInput?.['OTP Code'] || 
-                   additionalInput?.['otp_code'] ||
-                   additionalInput?.otpCode;
+        const otpFromInput = additionalInput?.otp || 
+                           additionalInput?.OTP || 
+                           additionalInput?.['OTP Code'] || 
+                           additionalInput?.['otp_code'] ||
+                           additionalInput?.otpCode;
         
-        if (otp) {
-          console.log(`OTP received: ${otp}`);
-          return otp;
+        if (otpFromInput) {
+          console.log(`OTP received from input: ${otpFromInput}`);
+          return otpFromInput;
         }
         
-        // הצגת התקדמות
-        const remainingTime = Math.ceil((maxWaitTime - waitedTime) / 1000);
-        if (waitedTime % 30000 === 0) { // כל 30 שניות
-          console.log(`Still waiting for OTP... ${remainingTime} seconds remaining`);
-        }
-        
-        // המתנה לבדיקה הבאה
-        await new Promise(resolve => setTimeout(resolve, checkInterval));
-        waitedTime += checkInterval;
+      } catch (error) {
+        console.log('Error checking for OTP:', error.message);
       }
       
-      throw new Error('OTP not provided within 3 minutes timeout');
+      // הצגת התקדמות
+      const remainingTime = Math.ceil((maxWaitTime - waitedTime) / 1000);
+      if (waitedTime % 15000 === 0) { // כל 15 שניות
+        console.log(`Still waiting for OTP... ${remainingTime} seconds remaining`);
+      }
+      
+      // המתנה לבדיקה הבאה
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      waitedTime += checkInterval;
     }
     
-    // אחרת - טיפול רגיל דרך הדאטאבייס
-    // TODO: implement database OTP handling
-    throw new Error('Database OTP handling not implemented yet');
+    // עדכון סטטוס - נכשל
+    await Actor.setValue(`otp_request_${this.job.id}`, {
+      status: 'timeout',
+      timestamp: new Date().toISOString()
+    });
+    
+    throw new Error('OTP not provided within 3 minutes timeout');
   }
 
   async enterOTP(page, otp) {
