@@ -67,9 +67,13 @@ class BaseProvider {
     
     // בדיקה אם באמת הגענו לעמוד OTP
     const pageText = await page.textContent('body');
-    const hasOtpField = await page.locator('input[placeholder*="קוד"], input[type="tel"], input[type="number"]').count() > 0;
+    const hasOtpField = await page.locator('input[placeholder*="קוד"], input[placeholder*="הקלד"], input[type="tel"], input[type="number"]').count() > 0;
     
-    if (!hasOtpField && !pageText.includes('קוד') && !pageText.includes('OTP')) {
+    // בדיקה מקיפה יותר - כולל טקסט על שליחת קוד
+    const hasOtpText = pageText.includes('קוד') || pageText.includes('OTP') || 
+                       pageText.includes('נשלח') || pageText.includes('הקלד');
+    
+    if (!hasOtpField && !hasOtpText) {
       console.log('WARNING: No OTP field found on page. Page content includes:');
       console.log(pageText.substring(0, 500));
       

@@ -202,26 +202,50 @@ class YellinLapidotProvider extends BaseProvider {
   async handleAgencySelection(page) {
     console.log('Checking for agency selection page...');
     
-    // בדיקה אם אנחנו בעמוד בחירת סוכנות
-    const agencyCombobox = page.locator('input[role="combobox"]');
-    if (await agencyCombobox.count() > 0 && this.vendor.agency) {
-      console.log(`Selecting agency: ${this.vendor.agency}`);
+    // בדיקה אם יש טקסט "יש לבחור סוכנות"
+    const pageText = await page.textContent('body');
+    if (!pageText.includes('יש לבחור סוכנות')) {
+      console.log('Not on agency selection page');
+      return;
+    }
+    
+    console.log('On agency selection page');
+    
+    // לחיצה על ה-combobox
+    const combobox = page.locator('select, [role="combobox"]').first();
+    if (await combobox.count() > 0) {
+      console.log('Found agency combobox');
+      await combobox.click();
+      await page.waitForTimeout(500);
       
-      // הקלדת שם הסוכנות
-      await agencyCombobox.fill(this.vendor.agency);
-      await page.waitForTimeout(1000); // המתנה ל-autocomplete
-      
-      // בחירת האופציה מהרשימה
-      const option = page.locator(`option:has-text("${this.vendor.agency}")`);
-      if (await option.count() > 0) {
-        await option.click();
+      // חיפוש האופציה הנכונה
+      if (this.vendor.agency) {
+        console.log(`Looking for agency: ${this.vendor.agency}`);
+        
+        // נסיון ללחוץ על האופציה
+        const option = page.locator(`option:has-text("${this.vendor.agency}")`).first();
+        if (await option.count() > 0) {
+          console.log('Clicking on agency option');
+          await option.click();
+        } else {
+          // אם לא מצאנו, ננסה ללחוץ על האופציה השנייה (בדרך כלל זו הסוכנות)
+          const secondOption = page.locator('option').nth(1);
+          if (await secondOption.count() > 0) {
+            console.log('Clicking second option as fallback');
+            await secondOption.click();
+          }
+        }
       }
       
+      await page.waitForTimeout(1000);
+      
       // לחיצה על המשך
-      const continueBtn = page.locator('button').filter({ hasText: 'המשך' });
+      const continueBtn = page.locator('button').filter({ hasText: 'המשך' }).first();
       if (await continueBtn.count() > 0) {
+        console.log('Clicking continue after agency selection');
         await continueBtn.click();
         await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(2000);
       }
     }
   }
