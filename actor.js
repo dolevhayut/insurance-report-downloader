@@ -244,10 +244,8 @@ class InsuranceReportDownloader {
       
       // ניווט עם המתנה לטעינה מלאה
       const response = await page.goto(siteConfig.loginUrl, { 
-        waitUntil: ['networkidle', 'domcontentloaded'],
-        timeout: 60000,
-        // עקוב אחרי כל ההפניות
-        waitForSelector: false
+        waitUntil: 'networkidle',
+        timeout: 60000
       });
       
       console.log(`Initial response status: ${response.status()}`);
