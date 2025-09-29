@@ -73,11 +73,59 @@ class YellinLapidotProvider extends BaseProvider {
     
     if (checkboxes.length > 0) {
       const firstCheckbox = checkboxes[0];
+      
+      // חשוב! נוודא שהערך של ה-checkbox הוא "on"
+      const checkboxValue = await firstCheckbox.getAttribute('value');
+      console.log(`Checkbox value attribute: ${checkboxValue}`);
+      
+      // אם אין value, נוסיף
+      if (!checkboxValue) {
+        await page.evaluate(() => {
+          const cb = document.querySelector('input[type="checkbox"]');
+          if (cb) {
+            cb.value = 'on';
+            console.log('Set checkbox value to "on"');
+          }
+        });
+      }
+      
       const isChecked = await firstCheckbox.isChecked();
       
       if (!isChecked) {
-        await firstCheckbox.click();
-        console.log('Clicked terms checkbox');
+        // ננסה כמה שיטות לסימון
+        try {
+          // שיטה 1: click רגיל
+          await firstCheckbox.click();
+          await page.waitForTimeout(500);
+          
+          // בדיקה אם עבד
+          let nowChecked = await firstCheckbox.isChecked();
+          if (!nowChecked) {
+            console.log('Regular click failed, trying JavaScript...');
+            
+            // שיטה 2: סימון דרך JavaScript
+            await page.evaluate(() => {
+              const cb = document.querySelector('input[type="checkbox"]');
+              if (cb) {
+                cb.checked = true;
+                // הפעלת event
+                cb.dispatchEvent(new Event('change', { bubbles: true }));
+                cb.dispatchEvent(new Event('click', { bubbles: true }));
+              }
+            });
+          }
+          
+          // בדיקה סופית
+          nowChecked = await firstCheckbox.isChecked();
+          console.log(`Terms checkbox is now: ${nowChecked ? 'checked' : 'unchecked'}`);
+          
+          // וידוא שה-name נכון
+          const checkboxName = await firstCheckbox.getAttribute('name');
+          console.log(`Checkbox name: ${checkboxName}`);
+          
+        } catch (e) {
+          console.error('Error checking terms:', e.message);
+        }
       } else {
         console.log('Terms already accepted');
       }
@@ -200,12 +248,41 @@ class YellinLapidotProvider extends BaseProvider {
             console.log('JavaScript click also did not work, trying form submit...');
             
             // שיטה 3: שליחת הטופס ישירות
-            await page.evaluate(() => {
+            const formInfo = await page.evaluate(() => {
               const forms = document.querySelectorAll('form');
               if (forms.length > 0) {
                 const form = forms[0];
                 
-                // בדיקה אם יש פונקציית onsubmit
+                // בדיקת פרטי הטופס
+                const formData = {};
+                const inputs = form.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                  if (input.name) {
+                    if (input.type === 'checkbox') {
+                      formData[input.name] = input.checked ? (input.value || 'on') : '';
+                    } else if (input.type === 'radio') {
+                      if (input.checked) {
+                        formData[input.name] = input.value;
+                      }
+                    } else {
+                      formData[input.name] = input.value;
+                    }
+                  }
+                });
+                
+                console.log('Form data:', formData);
+                console.log('Form action:', form.action);
+                console.log('Form method:', form.method);
+                
+                // וידוא שה-checkbox מסומן
+                const checkbox = form.querySelector('input[type="checkbox"]');
+                if (checkbox && !checkbox.checked) {
+                  console.log('Checkbox not checked! Setting it...');
+                  checkbox.checked = true;
+                  checkbox.value = 'on';
+                }
+                
+                // שליחת הטופס
                 if (form.onsubmit) {
                   console.log('Calling form.onsubmit()');
                   const result = form.onsubmit();
@@ -216,8 +293,13 @@ class YellinLapidotProvider extends BaseProvider {
                   console.log('Direct form.submit()');
                   form.submit();
                 }
+                
+                return formData;
               }
+              return null;
             });
+            
+            console.log('Form submission info:', formInfo);
           }
         }
       } catch (clickError) {
