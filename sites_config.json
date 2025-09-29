@@ -103,7 +103,7 @@
   {
     "siteId": "yellin_lapidot",
     "displayName": "ילין לפידות",
-    "loginUrl": "https://online.yl-invest.co.il/agents/",
+    "loginUrl": "https://online.yl-invest.co.il/agents/login",
     "selectors": {
       "idField": "input[placeholder='תעודת זהות של מורשה גישה']",
       "phoneField": "input[placeholder='טלפון נייד']",
