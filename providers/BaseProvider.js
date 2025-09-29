@@ -79,6 +79,11 @@ class BaseProvider {
         console.log('Alert found:', await alert.textContent());
       }
       
+      // נדפיס את כל הטקסט הגלוי בעמוד לדיבאג
+      console.log('\n=== FULL PAGE TEXT ===');
+      console.log(pageText);
+      console.log('=== END PAGE TEXT ===\n');
+      
       throw new Error('OTP page not reached - SMS might not have been sent');
     }
     

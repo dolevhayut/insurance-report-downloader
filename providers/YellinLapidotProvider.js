@@ -4,18 +4,32 @@ class YellinLapidotProvider extends BaseProvider {
   async fillLoginForm(page) {
     console.log('Filling Yellin Lapidot login form...');
     
+    // הדפסת הערכים שאנחנו ממלאים
+    const idValue = this.vendor.id || this.vendor.username;
+    const phoneValue = this.vendor.phone || this.vendor.password;
+    console.log(`ID to fill: ${idValue}`);
+    console.log(`Phone to fill: ${phoneValue}`);
+    
     // מילוי תעודת זהות
     const idField = page.locator(this.siteConfig.selectors.idField);
     if (await idField.count() > 0) {
-      await idField.fill(this.vendor.id || this.vendor.username);
+      await idField.fill(idValue);
       console.log('Filled ID field');
+      
+      // בדיקה שהערך נכנס
+      const filledId = await idField.inputValue();
+      console.log(`ID field now contains: ${filledId}`);
     }
     
     // מילוי טלפון
     const phoneField = page.locator(this.siteConfig.selectors.phoneField);
     if (await phoneField.count() > 0) {
-      await phoneField.fill(this.vendor.phone || this.vendor.password);
+      await phoneField.fill(phoneValue);
       console.log('Filled phone field');
+      
+      // בדיקה שהערך נכנס
+      const filledPhone = await phoneField.inputValue();
+      console.log(`Phone field now contains: ${filledPhone}`);
     }
     
     // בחירת SMS
@@ -102,22 +116,52 @@ class YellinLapidotProvider extends BaseProvider {
       
       await continueBtn.click();
       
-      // המתנה למעבר לעמוד הבא
-      await Promise.race([
-        page.waitForNavigation({ waitUntil: 'networkidle' }),
-        page.waitForTimeout(5000)
-      ]);
+      // המתנה קצרה לתגובת השרת
+      await page.waitForTimeout(2000);
+      
+      // בדיקה אם נשארנו באותו עמוד
+      const currentUrl = page.url();
+      console.log(`After click URL: ${currentUrl}`);
+      
+      // בדיקה מקיפה יותר להודעות שגיאה
+      const possibleErrorSelectors = [
+        '.error', '.alert', '[role="alert"]', '.text-danger',
+        '.message', '.notification', '.toast',
+        'div[style*="color: red"]', 'span[style*="color: red"]',
+        'div[class*="error"]', 'span[class*="error"]'
+      ];
+      
+      for (const selector of possibleErrorSelectors) {
+        const elements = await page.locator(selector).all();
+        for (const element of elements) {
+          const text = await element.textContent();
+          if (text && text.trim().length > 0) {
+            console.log(`Found message (${selector}): ${text.trim()}`);
+          }
+        }
+      }
+      
+      // בדיקה אם יש אלמנט שמכיל את המילה "שגיאה" או "Error"
+      const hebrewErrors = await page.locator('text=/שגיאה|תקלה|נכשל|בעיה/').all();
+      for (const error of hebrewErrors) {
+        console.log('Hebrew error found:', await error.textContent());
+      }
       
       await this.saveScreenshot(page, 'after-continue');
-      console.log(`Current URL: ${page.url()}`);
       
-      // בדיקה אם יש הודעת שגיאה בעמוד
-      const errorMessages = await page.locator('.error, .alert, [role="alert"], .text-danger').all();
-      for (const error of errorMessages) {
-        const text = await error.textContent();
-        if (text) {
-          console.log(`Error message on page: ${text}`);
+      // אם נשארנו באותו עמוד, ננסה ללחוץ שוב
+      if (currentUrl === 'https://online.yl-invest.co.il/agents/login') {
+        console.log('Still on login page, might be validation error or captcha');
+        
+        // בדיקה אם יש captcha
+        const captchaExists = await page.locator('iframe[src*="recaptcha"], div[class*="captcha"], .g-recaptcha').count() > 0;
+        if (captchaExists) {
+          console.log('CAPTCHA detected on page!');
+          throw new Error('CAPTCHA verification required - manual intervention needed');
         }
+        
+        // אם אין שגיאות גלויות, נחכה עוד קצת
+        await page.waitForTimeout(3000);
       }
       }
     } catch (error) {
