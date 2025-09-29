@@ -103,20 +103,28 @@ class BaseProvider {
     if (this.job.id.startsWith('temp_')) {
       console.log('\n=== OTP REQUIRED ===');
       console.log(`Please enter the OTP code for ${this.displayName}:`);
-      console.log('You have 3 minutes to add "otp" field to the input in Apify Console');
-      console.log('Go to Input tab and add: {"otp": "YOUR_CODE_HERE"}');
+      console.log('You have 3 minutes to add OTP field to the input in Apify Console');
+      console.log('Go to Input tab and add one of these:');
+      console.log('  - "otp": "YOUR_CODE_HERE"');
+      console.log('  - "OTP": "YOUR_CODE_HERE"');
+      console.log('  - "OTP Code": "YOUR_CODE_HERE"');
+      console.log('  - "otpCode": "YOUR_CODE_HERE"');
       
       const maxWaitTime = 180000; // 3 דקות
       const checkInterval = 5000; // בדיקה כל 5 שניות
       let waitedTime = 0;
       
       while (waitedTime < maxWaitTime) {
-        // נבדוק אם יש OTP בקלט
+        // נבדוק אם יש OTP בקלט - נחפש בשמות שונים
         const additionalInput = await Actor.getInput();
-        const otp = additionalInput?.otp;
+        const otp = additionalInput?.otp || 
+                   additionalInput?.OTP || 
+                   additionalInput?.['OTP Code'] || 
+                   additionalInput?.['otp_code'] ||
+                   additionalInput?.otpCode;
         
         if (otp) {
-          console.log('OTP received!');
+          console.log(`OTP received: ${otp}`);
           return otp;
         }
         
