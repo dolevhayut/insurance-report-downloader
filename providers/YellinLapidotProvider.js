@@ -215,6 +215,17 @@ class YellinLapidotProvider extends BaseProvider {
       
       // ננסה כמה שיטות ללחיצה
       try {
+        // קודם נוודא שה-checkbox באמת מוגדר נכון
+        await page.evaluate(() => {
+          const checkbox = document.querySelector('input[type="checkbox"][name="confirm"]');
+          if (checkbox) {
+            checkbox.checked = true;
+            checkbox.value = 'on';
+            // נוסיף גם attribute נוסף
+            checkbox.setAttribute('checked', 'checked');
+          }
+        });
+        
         // שיטה 1: לחיצה רגילה עם force
         await continueBtn.click({ force: true });
         await page.waitForTimeout(2000);
@@ -222,7 +233,7 @@ class YellinLapidotProvider extends BaseProvider {
         // בדיקה אם עברנו עמוד
         let newUrl = page.url();
         if (newUrl === 'https://online.yl-invest.co.il/agents/login') {
-          console.log('Regular click did not work, trying JavaScript click...');
+          console.log('Regular click did not work, trying direct navigation...');
           
           // שיטה 2: הפעלת הכפתור דרך JavaScript
           await page.evaluate(() => {
@@ -245,7 +256,24 @@ class YellinLapidotProvider extends BaseProvider {
           newUrl = page.url();
           
           if (newUrl === 'https://online.yl-invest.co.il/agents/login') {
-            console.log('JavaScript click also did not work, trying form submit...');
+            console.log('JavaScript click also did not work, trying direct URL navigation...');
+            
+            // שיטה 3: ניווט ישיר עם הפרמטרים הנכונים
+            const idValue = await page.locator(this.siteConfig.selectors.idField).inputValue();
+            const phoneValue = await page.locator(this.siteConfig.selectors.phoneField).inputValue();
+            const method = await page.locator('input[type="radio"]:checked').getAttribute('value') || '1';
+            
+            const directUrl = `https://online.yl-invest.co.il/agents/login?personalId=${idValue}&mobileNumber=${phoneValue}&method=${method}&confirm=on`;
+            console.log('Navigating directly to:', directUrl);
+            
+            await page.goto(directUrl, { waitUntil: 'networkidle' });
+            await page.waitForTimeout(2000);
+            
+            newUrl = page.url();
+          }
+          
+          if (newUrl === 'https://online.yl-invest.co.il/agents/login') {
+            console.log('Direct navigation also did not work, trying form submit...');
             
             // שיטה 3: שליחת הטופס ישירות
             const formInfo = await page.evaluate(() => {
