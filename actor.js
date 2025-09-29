@@ -154,10 +154,23 @@ class InsuranceReportDownloader {
     
     try {
       // פתיחת דפדפן
+      const isDebugMode = process.env.DEBUG_MODE === 'true' || input.debugMode === true;
+      
       browser = await chromium.launch({ 
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        headless: !isDebugMode, // אם במצב דיבאג, הפעל עם UI
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        // הגדרות נוספות לדיבאג
+        ...(isDebugMode && {
+          slowMo: 100, // האט פעולות ב-100ms
+          devtools: false
+        })
       });
+      
+      if (isDebugMode) {
+        console.log('=== DEBUG MODE ENABLED ===');
+        console.log('Browser running in non-headless mode');
+        console.log('Actions will be slower for visibility');
+      }
       
       const context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

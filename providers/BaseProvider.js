@@ -65,6 +65,23 @@ class BaseProvider {
     // שמירת screenshot
     await this.saveScreenshot(page, 'otp-page');
     
+    // בדיקה אם באמת הגענו לעמוד OTP
+    const pageText = await page.textContent('body');
+    const hasOtpField = await page.locator('input[placeholder*="קוד"], input[type="tel"], input[type="number"]').count() > 0;
+    
+    if (!hasOtpField && !pageText.includes('קוד') && !pageText.includes('OTP')) {
+      console.log('WARNING: No OTP field found on page. Page content includes:');
+      console.log(pageText.substring(0, 500));
+      
+      // בדיקה אם יש הודעת שגיאה
+      const alerts = await page.locator('.alert, .error, [role="alert"]').all();
+      for (const alert of alerts) {
+        console.log('Alert found:', await alert.textContent());
+      }
+      
+      throw new Error('OTP page not reached - SMS might not have been sent');
+    }
+    
     // יש לממש בכל ספק
     const otp = await this.waitForOTP();
     await this.enterOTP(page, otp);

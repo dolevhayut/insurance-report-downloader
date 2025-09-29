@@ -80,17 +80,45 @@ class YellinLapidotProvider extends BaseProvider {
       // חיפוש כפתור "המשך"
       const continueBtn = page.locator('button').filter({ hasText: 'המשך' }).first();
       if (await continueBtn.count() > 0) {
-        console.log('Clicking continue button...');
-        await continueBtn.click();
-        
-        // המתנה למעבר לעמוד הבא
-        await Promise.race([
-          page.waitForNavigation({ waitUntil: 'networkidle' }),
-          page.waitForTimeout(5000)
-        ]);
-        
-        await this.saveScreenshot(page, 'after-continue');
-        console.log(`Current URL: ${page.url()}`);
+      console.log('Clicking continue button...');
+      
+      // האזנה לבקשות רשת לפני הלחיצה
+      page.on('response', response => {
+        const url = response.url();
+        if (url.includes('yl-invest') || url.includes('otp') || url.includes('sms')) {
+          console.log(`Network response: ${response.status()} - ${url}`);
+          if (response.status() >= 400) {
+            console.log(`Error response headers:`, response.headers());
+          }
+        }
+      });
+      
+      // האזנה לשגיאות console
+      page.on('console', msg => {
+        if (msg.type() === 'error') {
+          console.log('Page console error:', msg.text());
+        }
+      });
+      
+      await continueBtn.click();
+      
+      // המתנה למעבר לעמוד הבא
+      await Promise.race([
+        page.waitForNavigation({ waitUntil: 'networkidle' }),
+        page.waitForTimeout(5000)
+      ]);
+      
+      await this.saveScreenshot(page, 'after-continue');
+      console.log(`Current URL: ${page.url()}`);
+      
+      // בדיקה אם יש הודעת שגיאה בעמוד
+      const errorMessages = await page.locator('.error, .alert, [role="alert"], .text-danger').all();
+      for (const error of errorMessages) {
+        const text = await error.textContent();
+        if (text) {
+          console.log(`Error message on page: ${text}`);
+        }
+      }
       }
     } catch (error) {
       console.error('Error submitting form:', error.message);
