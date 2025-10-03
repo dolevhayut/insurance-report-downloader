@@ -342,7 +342,9 @@ class InsuranceReportDownloader {
 }
 
 // הרצת ה-Actor
-Actor.main(async () => {
-  const downloader = new InsuranceReportDownloader();
-  await downloader.run();
-});
+// Actor.main(async () => {
+//   const downloader = new InsuranceReportDownloader();
+//   await downloader.run();
+// });
+
+module.exports = InsuranceReportDownloader;
